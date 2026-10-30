@@ -508,24 +508,15 @@ function render(opts){
   app.focus({preventScroll:true});
 
   if(keep){
-    /* 描画直後とレイアウト確定後の2回戻す（画像やフォントで高さが変わっても安定させる） */
     window.scrollTo({top:y, behavior:'auto'});
     requestAnimationFrame(()=>{ window.scrollTo({top:y, behavior:'auto'}); });
   }else{
-    /* 設問をまたぐ移動は先頭へ。smoothだと長い距離で途中座標に残ることがあるので即時で戻す */
     window.scrollTo({top:0, behavior:'auto'});
     requestAnimationFrame(()=>{ window.scrollTo({top:0, behavior:'auto'}); });
   }
   save();
 }
 
-function go(step){
-  if(step==='result' || step==='out'){
-    if(!state.genre){ toast('先にジャンルを選んでください'); step='genre'; }
-  }
-  state.step = step;
-  render();
-}
 
 /* ---------------- イベント ---------------- */
 document.addEventListener('click', (e)=>{
