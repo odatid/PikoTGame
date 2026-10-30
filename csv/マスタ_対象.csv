@@ -1,0 +1,11 @@
+id,label,note,dev
+aud_kids,小学生,漢字は少なめ。失敗しても痛くない,tap
+aud_teen,中高生,短くて派手。SNS的なノリ,both
+aud_20s,10〜20代,テンポと気持ちよさ重視,both
+aud_pico,ピコ太郎を知っている世代,元ネタの記憶がある,both
+aud_nonppap,PPAPを知らない若年層,初見で伝わる必要がある,tap
+aud_global,海外ユーザー,言語に頼れない,both
+aud_family,親子・ファミリー,大人と子どもが一緒に遊ぶ,both
+aud_sns,SNSユーザー,見せたくなる瞬間が要る,tap
+aud_casual,短時間の暇つぶし,1分で終わる,tap
+aud_class,授業内で遊ぶ,静かな環境。音は控えめ,pc

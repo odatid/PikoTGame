@@ -1,0 +1,28 @@
+id,name,fn,cat,level,deps,done,check,trap,minutes
+PlayerMove,PlayerMove,左右移動,操作,1,,キーで動き、画面の端で止まる,Gameビューで端まで移動して、はみ出さないこと,transform.position を直接書き換えず、x だけを Mathf.Clamp で制限する,20
+InputManager,InputManager,キーとタップの吸収,操作,2,,PCのキーとスマホのタップが同じ変数に入る,スマホ幅にしても操作できる,Update内で入力を読むと二重に反応する。1か所にまとめる,15
+AutoRun,AutoRun,自動前進,操作,1,PlayerMove,何もしなくても前へ進む,放置して位置が進むこと,移動を固定値で足すとfpsで速度が変わる。Time.deltaTime を掛ける,10
+FallingObject,FallingObject,上から落下,生成,1,,上から落ちて画面外で消える,3秒放置で見えなくなる,Destroyを忘れるとメモリに溜まる,15
+SpawnManager,SpawnManager,一定時間ごとに生成,生成,2,FallingObject,等間隔でアイテムが出続ける,10秒で個数が想定どおり,Instantiateの位置がPrefabの初期値になる。生成時に座標を上書きする,20
+RandomSpawner,RandomSpawner,ランダムな位置・種類,生成,2,SpawnManager,位置と種類が毎回変わる,20回出して偏りが少ない,Random.Range のint版とfloat版を間違える,15
+SpeedUp,SpeedUp,時間経過で難易度上昇,生成,2,SpawnManager,後半で明らかに速くなる,開始10秒と50秒で速度が違う,毎フレーム加算すると一気に速くなる。秒あたりで加算する,15
+CollisionJudge,CollisionJudge,接触判定,判定,1,,触れた瞬間にConsoleへログが出る,Consoleに1行だけ出る,IsTriggerとTagの両方が必要。Rigidbody2Dもどちらかに要る,20
+ScoreManager,ScoreManager,得点管理,管理,1,CollisionJudge,取ると数字が増える,HUDの数字が1ずつ増える,UI更新を毎フレームやると重い。値が変わった時だけ更新,15
+LifeManager,LifeManager,残機管理,管理,1,,ミスで減り、0で終了する,3回ミスで動きが止まる,0未満にならないようにClampする,15
+Timer,Timer,制限時間,管理,1,,残り時間が表示され、0で終わる,60秒で必ず終了する,Time.time を直接使うとリトライで戻らない。残り時間を自前で持つ,15
+ResultManager,ResultManager,結果表示,画面,1,,成功／失敗と理由が出る,勝ちと負けの両方で文言が変わる,PanelのSetActiveを戻し忘れて暗いままになる,20
+Retry,Retry,再プレイ（状態初期化）,画面,2,ResultManager,タイトルからやり直せる,2周してもスコアが残らない,static変数が残る。リトライで明示的に0へ戻す,20
+SceneLoader,SceneLoader,画面遷移,画面,1,,タイトル→ゲーム→リザルトが切り替わる,3画面を行き来できる,SceneManagerのusing忘れ,15
+UIManager,UIManager,UI更新の一元化,画面,2,,スコア／時間／ライフが1か所から更新される,どの画面でも表示がずれない,TextMeshProとUI.Textを混ぜない,20
+SoundManager,SoundManager,SE/BGM再生,音,2,,決定音とミス音が鳴る,Playで音が出る,AudioListenerが2つあると無音になる,15
+ObjectPool,ObjectPool,生成破棄の再利用,生成,3,SpawnManager,アイテムが再利用される,Hierarchyの数が増え続けない,SetActive(false)で戻す前に初期化する,30
+DragObject,DragObject,ドラッグ操作,操作,3,,アイテムを掴んで動かせる,離すとその場に残る,ワールド座標とスクリーン座標を変換する（Camera.main.ScreenToWorldPoint）,25
+DropSlot,DropSlot,ドロップ先の判定,判定,2,DragObject,正しい場所に置くと判定が返る,置いた場所のTagが読める,コライダーのSizeが小さすぎて反応しない,20
+StackObject,StackObject,積み上げ,判定,2,FallingObject,落とした物が上に乗る,3段積める,Rigidbody2DのInterpolateを入れるとガタつきが減る,25
+BalanceJudge,BalanceJudge,バランス判定,判定,3,StackObject,大きく傾くと崩れる,わざと端に積むと崩れる,重心を自前で計算すると重い。合計位置÷個数で十分,30
+RhythmJudge,RhythmJudge,タイミング判定（窓）,判定,3,,PERFECT/GOOD/MISSが出る,早すぎ・遅すぎで文言が変わる,判定窓を秒で持つ。フレームで持つとfpsで変わる,30
+CombinationJudge,CombinationJudge,組み合わせ判定,判定,2,,2つのIDの組で結果が返る,正解と不正解の両方で反応が違う,組み合わせ表をif文で書くと破綻する。DictionaryかScriptableObjectにする,25
+MatchJudge,MatchJudge,正誤判定（2択）,判定,1,,押した側が正解か返る,両方のボタンで試す,連打で2回判定される。判定中は入力を止める,15
+ComboManager,ComboManager,連続成功,管理,2,ScoreManager,連続で成功すると数字が伸びる,わざと外すと0に戻る,コンボのリセット条件を決めてから書く,20
+OrderJudge,OrderJudge,順番判定,判定,2,,決まった順番で押すと成功,順番を変えると失敗する,配列の初期化をAwakeで行う（null参照の定番）,20
+DifficultyCurve,DifficultyCurve,難易度の曲線,管理,2,,時間で難しさが変わる,最初と最後で体感が違う,AnimationCurveを使うと調整が楽,15

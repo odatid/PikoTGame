@@ -1,0 +1,11 @@
+id,label,tags
+p_combine,異なるものを組み合わせて新しい価値を生むIP,"ip_combine,ip_unexpected,co_anything"
+p_wordless,言葉が通じなくても伝わるIP,"ch_wordless,in_visual,in_gesture,in_sound"
+p_mimic,思わず真似したくなるIP,"sp_mimic,ip_mimic,ch_body,in_gesture"
+p_social,社会の課題を楽しく伝えるIP,"so_handwash,so_traffic,so_eco,so_sdgs,so_edu"
+p_short,短くて強いIP,"ip_short,sp_short,sp_oneneta"
+p_connect,人と人、文化と文化をつなぐIP,"in_culture,co_involve,co_char,sp_global"
+p_update,時代に合わせて更新され続けるIP,"ip_repeat,co_anything,sp_short"
+p_serious,真面目にふざけられるIP,"ch_deadpan,ch_confident,ch_surreal,ch_silly"
+p_kids,子どもにも大人にも届くIP,"ch_kids,ch_friendly,so_edu,in_visual"
+p_loud,画面いっぱいに主張する派手なIP,"vis_loud,vis_leopard,vis_yellow,vis_gold"

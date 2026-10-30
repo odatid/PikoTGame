@@ -1,0 +1,425 @@
+/* =========================================================
+   PK//PROTO v2 — データ層
+   方針：企画コンセプトを先に考えさせない。
+   「好きな遊び」を選ばせ、ピコ太郎を1か所だけ乗せて
+   “面白そう”に着地させる。コンセプトは最後に自動で付く。
+   乱数は使わない（決定的）。
+   ========================================================= */
+window.PK2 = window.PK2 || {};
+
+/* ---------------- 人気ゲーム（18〜20歳・直近の話題作） ----------------
+   genres: 相性のよいジャンルID。好きなゲームからジャンルを推薦する。
+   ------------------------------------------------------------ */
+PK2.GAMES = [
+  {id:'g_spl3',  name:'スプラトゥーン3',        cat:'対戦・アクション', genres:['g_vshoot','g_hshoot','g_platx']},
+  {id:'g_fort',  name:'フォートナイト',          cat:'対戦・シューティング', genres:['g_gun','g_horde','g_platx']},
+  {id:'g_apex',  name:'エーペックスレジェンズ',  cat:'対戦・シューティング', genres:['g_gun','g_horde']},
+  {id:'g_valo',  name:'ヴァロラント',            cat:'対戦・シューティング', genres:['g_gun','g_shot']},
+  {id:'g_ow',    name:'オーバーウォッチ2',       cat:'対戦・シューティング', genres:['g_gun','g_horde']},
+  {id:'g_pubg',  name:'PUBG / 荒野行動',         cat:'対戦・サバイバル',     genres:['g_gun','g_horde']},
+  {id:'g_ark',   name:'ARK / パルワールド',      cat:'サバイバル・クラフト', genres:['g_horde','g_fishing']},
+  {id:'g_mc',    name:'マインクラフト',          cat:'サンドボックス',       genres:['g_actpuzzle','g_breakout']},
+  {id:'g_roblox',name:'ロブロックス',            cat:'サンドボックス',       genres:['g_otoshimono','g_platx','g_wall','g_tsubo']},
+  {id:'g_zelda', name:'ゼルダの伝説 TotK',       cat:'探索・アクション',     genres:['g_actpuzzle','g_platx']},
+  {id:'g_elden', name:'エルデンリング',          cat:'アクションRPG',        genres:['g_horde','g_gun']},
+  {id:'g_mhw',   name:'モンスターハンター',      cat:'ハンティング',         genres:['g_horde','g_hshoot']},
+  {id:'g_smash', name:'大乱闘スマッシュブラザーズ',cat:'対戦アクション',     genres:['g_platx','g_pong']},
+  {id:'g_mk8',   name:'マリオカート8 デラックス',cat:'レース',               genres:['g_run','g_run3d']},
+  {id:'g_mario', name:'スーパーマリオ',          cat:'アクション',           genres:['g_platx','g_platy']},
+  {id:'g_kirby', name:'カービィ',                cat:'アクション',           genres:['g_platx','g_platy']},
+  {id:'g_vamp',  name:'ヴァンパイアサバイバーズ',cat:'ローグライト',         genres:['g_horde','g_vshoot']},
+  {id:'g_suika', name:'スイカゲーム',            cat:'物理パズル',           genres:['g_otoshimono','g_actpuzzle']},
+  {id:'g_puyo',  name:'ぷよぷよ / テトリス',     cat:'落ちモノパズル',       genres:['g_otoshimono','g_puzzact']},
+  {id:'g_proseka',name:'プロジェクトセカイ',     cat:'リズム',               genres:['g_rhythm']},
+  {id:'g_taiko', name:'太鼓の達人',              cat:'リズム',               genres:['g_rhythm']},
+  {id:'g_beat',  name:'ビートマニア',            cat:'リズム',               genres:['g_rhythm']},
+  {id:'g_uma',   name:'ウマ娘',                  cat:'育成',                 genres:['g_run']},
+  {id:'g_gakumas',name:'学園アイドルマスター',   cat:'育成',                 genres:['g_rhythm']},
+  {id:'g_blue',  name:'ブルーアーカイブ',        cat:'RPG',                  genres:['g_gun','g_rhythm']},
+  {id:'g_genshin',name:'原神',                   cat:'RPG',                  genres:['g_actpuzzle','g_horde']},
+  {id:'g_hsr',   name:'崩壊スターレイル',        cat:'RPG',                  genres:['g_gun','g_pong']},
+  {id:'g_zzz',   name:'ゼンレスゾーンゼロ',      cat:'アクションRPG',        genres:['g_horde','g_platx']},
+  {id:'g_monst', name:'モンスターストライク',    cat:'スマホ・パズル',       genres:['g_pong','g_puzzact']},
+  {id:'g_tsum',  name:'ツムツム',                cat:'スマホ・パズル',       genres:['g_puzzact','g_otoshimono','g_haystack']},
+  {id:'g_nyan',  name:'にゃんこ大戦争',          cat:'スマホ・ストラテジー', genres:['g_pong','g_hshoot']},
+  {id:'g_among', name:'Among Us',                cat:'パーティ',             genres:['g_actpuzzle','g_wall']},
+  {id:'g_hff',   name:'ヒューマンフォールフラット',cat:'物理アクション',     genres:['g_actpuzzle','g_platx']},
+  {id:'g_8ban',  name:'8番出口',                 cat:'ホラー・探索',         genres:['g_actpuzzle','g_wall']},
+  {id:'g_bio',   name:'バイオハザード',          cat:'ホラー',               genres:['g_rail','g_gun']},
+  {id:'g_l4d',   name:'Left 4 Dead 系',          cat:'ホラー・協力',         genres:['g_rail','g_horde']},
+  {id:'g_stardew',name:'スターデューバレー',     cat:'牧場',                 genres:['g_fishing','g_actpuzzle']},
+  {id:'g_getover',name:'Getting Over It',        cat:'物理',                 genres:['g_wall','g_platy']},
+  {id:'g_golf',  name:'ゴルフゲーム全般',        cat:'スポーツ',             genres:['g_putting','g_shot']},
+  {id:'g_base',  name:'パワプロ / 野球ゲーム',   cat:'スポーツ',             genres:['g_batting','g_shot']},
+  {id:'g_fish',  name:'釣りスピリッツ等',        cat:'釣り',                 genres:['g_fishing','g_shot']}
+];
+
+/* ---------------- ジャンル（1分で「面白い」と思える型だけ） ----------------
+   level: Unityでの作りやすさ 1=易 2=中 3=難
+   input: 操作は1〜2種類に固定
+   assets: スクラップブックで必要な素材
+   ------------------------------------------------------------ */
+PK2.GENRES = [
+  {
+    id:'g_vshoot', label:'縦スクロールシューティング', fam:'シューティング', level:2,
+    eg:'グラディウス、雷電、東方系。下から撃って上から来るものを倒す。',
+    input:'移動＋自動射撃（2種類）', view:'縦画面・上から敵が降る', time:60, target:30, life:3,
+    loop:'上から来る敵を撃ち、弾をよけ、撃ち返す。',
+    why:'敵が増える→撃つ→気持ちいい。上達が3秒で分かる。',
+    unity:'自機Prefab＋弾Prefab＋敵Prefab＋Spawner。敵は真下に降ろすだけ。',
+    hooks:['h_item','h_crowd','h_face'], twist:'tw_dense',
+    assets:['自機','弾','敵A','敵B','爆発','星空背景','HUD']
+  },
+  {
+    id:'g_hshoot', label:'横スクロールシューティング', fam:'シューティング', level:2,
+    eg:'R-TYPE、ダライアス、メタルスラッグ系。地形の間を抜けながら横へ撃つ。',
+    input:'上下移動＋自動射撃（2種類）', view:'横画面・右から敵が来る', time:60, target:25, life:3,
+    loop:'横から迫る地形と敵をかわし、撃ち続ける。',
+    why:'地形が流れてくるだけで「旅してる感」が出る。',
+    unity:'横スクロール用に地形を左へ流す。当たり判定は自機の中心に小さく。',
+    hooks:['h_item','h_body','h_leopard'], twist:'tw_wall',
+    assets:['自機','弾','敵機','地形ブロック','爆発','背景','HUD']
+  },
+  {
+    id:'g_platx', label:'横スクロールアクション（マリオ型）', fam:'アクション', level:2,
+    eg:'スーパーマリオ、ロックマン、星のカービィ、セレステ。走って跳んで右のゴールへ（撃つのは後付けで足せる）。',
+    input:'移動＋ジャンプ（2種類）', view:'横画面・カメラ追従', time:60, target:1, life:3,
+    loop:'走る→跳ぶ→踏む→ゴール。落ちたらやり直し。',
+    why:'跳ぶだけで楽しい。覚えた動きがそのまま上手さになる。',
+    unity:'Player（Rigidbody2D＋接地判定）＋足場Prefab＋ゴール。カメラ追従。',
+    hooks:['h_pico','h_face','h_leopard'], twist:'tw_shrink',
+    assets:['主人公','足場','敵','ゴール','コイン','背景','HUD']
+  },
+  {
+    id:'g_platy', label:'縦スクロールアクション（アイスクライマー型）', fam:'アクション', level:2,
+    eg:'アイスクライマー、ドンキーコング（塔）、Jump King。下から迫られて上へ登る。',
+    input:'移動＋ジャンプ（2種類）', view:'縦画面・下から上へ登る', time:60, target:1, life:3,
+    loop:'足場を登り、下から迫るものから逃げる。',
+    why:'「上に行くだけ」なのに手が汗ばむ。失敗しても笑える。',
+    unity:'足場を下から上へ生成。プレイヤーは上方向のみ。落ちたらミス。',
+    hooks:['h_body','h_pico','h_face'], twist:'tw_rise',
+    assets:['主人公','足場','迫るもの','ゴール','背景','HUD']
+  },
+  {
+    id:'g_run', label:'ランゲーム（横・自動で走る）', fam:'アクション', level:1,
+    eg:'チャリ走、ソニックの自動走行、Temple Runの横版。跳ぶだけで進む。',
+    input:'ジャンプのみ（1種類）', view:'横画面・自動前進', time:60, target:20, life:3,
+    loop:'自動で走る→障害物を跳ぶ→コインを取る。',
+    why:'操作が1つ。初見でも3秒で遊べる。',
+    unity:'Playerは前進固定。障害物とコインを左へ流す。ジャンプだけ実装。',
+    hooks:['h_leopard','h_item','h_pico'], twist:'tw_speed',
+    assets:['走る主人公','障害物','コイン','地面','背景','HUD']
+  },
+  {
+    id:'g_run3d', label:'奥行き3Dランゲーム', fam:'アクション', level:3,
+    eg:'Temple Run、Subway Surfers。奥へ走り、3レーンを左右に避ける。',
+    input:'左右移動＋ジャンプ（2種類）', view:'3D・奥へ走る', time:60, target:20, life:3,
+    loop:'3レーンを走り、レーン変更とジャンプで避ける。',
+    why:'奥行きがあるだけで一気に“ゲーム感”が出る。',
+    unity:'3レーン固定（x=-3,0,3）。道とオブジェクトを手前へ流す。CubeでOK。',
+    hooks:['h_crowd','h_leopard','h_item'], twist:'tw_speed',
+    assets:['ランナー','障害物','コイン','道','背景','HUD']
+  },
+  {
+    id:'g_horde', label:'3Dホードシューター', fam:'シューティング', level:3,
+    eg:'ヴァンパイアサバイバーズ、Left 4 Deadの群れ。囲まれて自動攻撃でなぎ払う。',
+    input:'移動＋自動射撃（2種類）', view:'3D・見下ろし', time:60, target:0, life:5,
+    loop:'群れをかわし、自動攻撃でなぎ払い、60秒生きる。',
+    why:'何もしなくても敵が溶ける。画面がにぎやかで映える。',
+    unity:'地面Plane＋敵はCube。敵はプレイヤーへ直進。攻撃は一定間隔で最寄りへ。',
+    hooks:['h_crowd','h_disguise','h_item'], twist:'tw_dense',
+    assets:['自機','敵','弾','地面','背景','HUD']
+  },
+  {
+    id:'g_rail', label:'レールシューター（ゾンビサバイバル系）', fam:'シューティング', level:3,
+    eg:'ハウス・オブ・ザ・デッド、バイオハザードの射撃パート。道は自動で進む。',
+    input:'照準のみ（1種類）', view:'1人称・決まった道を進む', time:60, target:15, life:3,
+    loop:'決まった道を進みながら、出てくる的を撃つ。',
+    why:'自分で歩かなくていい。狙って当てるだけで成立する。',
+    unity:'カメラをレール上で自動前進。敵はTriggerで出現。撃つはクリックのみ。',
+    hooks:['h_face','h_disguise','h_pose'], twist:'tw_aim',
+    assets:['的','背景','照準','着弾','HUD']
+  },
+  {
+    id:'g_puzzact', label:'パズルアクション（消すのが主役）', fam:'パズル', level:2,
+    eg:'ぷよぷよ、テトリス、ツムツム、モンスト。盤面を消す・積むことが目的。',
+    input:'移動＋1ボタン（2種類）', view:'固定画面・グリッド', time:60, target:1000, life:1,
+    loop:'同じ色を並べて消す。連鎖でスコアが跳ねる。',
+    why:'連鎖した瞬間が気持ちいい。1分で自己ベストが出る。',
+    unity:'グリッド配列＋クリックで消去＆詰め。連鎖判定は再帰1回で十分。',
+    hooks:['h_item','h_pose','h_leopard'], twist:'tw_chain',
+    assets:['ピース3色','消去エフェクト','盤面','背景','HUD']
+  },
+  {
+    id:'g_otoshimono', label:'落ちモノパズル', fam:'パズル', level:1,
+    eg:'テトリス、スイカゲーム、ぷよぷよ。上から落として積み、同じものをくっつける。',
+    input:'左右移動＋落とす（2種類）', view:'縦画面・積み上げ', time:60, target:10, life:1,
+    loop:'落ちてくるものを左右に動かして落とし、同じものをくっつける。',
+    why:'シンプルなのに癖になる。画面が埋まる緊張が面白い。',
+    unity:'1マス配列。落下は1秒1マス。同種が3つ並んだら消す。',
+    hooks:['h_item','h_leopard','h_face'], twist:'tw_grow',
+    assets:['落ちモノ3種','壁','背景','HUD']
+  },
+  {
+    id:'g_actpuzzle', label:'アクションパズル（仕掛けを解く）', fam:'パズル', level:2,
+    eg:'倉庫番、8番出口、ゼルダの祠、レイトン。動いて仕掛けを順番に解く（消す遊びではない）。',
+    input:'移動＋押す（2種類）', view:'見下ろし・1画面', time:60, target:1, life:1,
+    loop:'スイッチを押し、順番を考えて扉を開ける。',
+    why:'「分かった！」の瞬間が快感。正解が1つに決まる。',
+    unity:'タイル配列でマップ。スイッチと扉をIDで紐づけ。クリア判定は1つだけ。',
+    hooks:['h_pose','h_body','h_item'], twist:'tw_order',
+    assets:['主人公','壁','スイッチ','扉','アイテム','背景','HUD']
+  },
+  {
+    id:'g_rhythm', label:'リズムゲーム', fam:'リズム', level:2,
+    eg:'太鼓の達人、ビートマニア、プロセカ、パカパカパッション。音に合わせて叩く。',
+    input:'4キー（1種類）', view:'縦画面・レーン', time:60, target:60, life:8,
+    loop:'流れてくるノーツを判定ラインで叩く。',
+    why:'音に乗るだけで気持ちいい。うまくなる実感が数値で出る。',
+    unity:'4レーン。ノーツ速度固定。判定は距離ではなく時間窓で持つ。',
+    hooks:['h_pose','h_item','h_crowd'], twist:'tw_chain',
+    assets:['ノーツ4種','レーン','判定ライン','背景','HUD']
+  },
+  {
+    id:'g_breakout', label:'ブロック崩し', fam:'アクション', level:1,
+    eg:'アルカノイド、ブロック崩し。パドルで跳ね返して上のブロックを壊す。',
+    input:'左右移動のみ（1種類）', view:'固定画面・上にブロック', time:60, target:18, life:3,
+    loop:'パドルで跳ね返してブロックを壊す。',
+    why:'1操作で完結。壊れる音と粒が気持ちいい。',
+    unity:'パドルは左右移動のみ。ボールは反射。ブロックはグリッド配置。',
+    hooks:['h_face','h_item','h_leopard'], twist:'tw_split',
+    assets:['パドル','ボール','ブロック','破片','背景','HUD']
+  },
+  {
+    id:'g_fishing', label:'カジュアル釣りゲーム', fam:'カジュアル', level:1,
+    eg:'釣りスピリッツ、釣りスター。ウキが動いた瞬間に合わせてボタン。',
+    input:'1ボタン（タイミング）', view:'横画面・水面', time:60, target:8, life:1,
+    loop:'合わせを待ってボタン。針にかかったら連打で引き上げる。',
+    why:'待つ→来た！の起伏が1分に何度も来る。',
+    unity:'待ち時間はランダムではなく固定パターン。当たり判定は1つの円。',
+    hooks:['h_item','h_pose','h_face'], twist:'tw_wait',
+    assets:['釣り人','魚3種','釣り糸','水面','背景','HUD']
+  },
+  {
+    id:'g_batting', label:'バッティングゲーム', fam:'スポーツ', level:1,
+    eg:'パワプロの打撃、ホームラン競争、バッティングセンター。来た球に合わせて振る。',
+    input:'1ボタン（タイミング）', view:'横画面・投手視点', time:60, target:5, life:3,
+    loop:'来た球に合わせて振る。芯で捉えると飛ぶ。',
+    why:'タイミング1つで結果が変わる。当たった瞬間が最高。',
+    unity:'球は一定速度で直進。判定はタイミング窓3段階（PERFECT/GOOD/MISS）。',
+    hooks:['h_face','h_item','h_pose'], twist:'tw_zone',
+    assets:['バッター','バット','球','ミット','背景','HUD']
+  },
+  {
+    id:'g_gun', label:'射撃（アーチェリー・競技射撃）', fam:'シューティング', level:2,
+    eg:'アーチェリー、競技用ライフル、オリンピック種目。競技として正確さを競う（屋台の遊びではない）。',
+    input:'狙い＋引く強さ（2種類）', view:'1人称・的までの距離', time:60, target:10, life:1,
+    loop:'弓を引き、狙いと強さを決めて射つ。中心に近いほど高い得点。',
+    why:'1本ごとに結果が出る。静かな集中と、当たった瞬間の手応え。',
+    unity:'カメラ固定。的は同心円3段階。Raycastの命中位置から中心距離を出して得点化。',
+    hooks:['h_face','h_disguise','h_item'], twist:'tw_wind',
+    assets:['的','弓','矢','風向きUI','背景','HUD']
+  },
+  {
+    id:'g_shot', label:'射的（お祭りの屋台）', fam:'カジュアル', level:1,
+    eg:'縁日のコルク鉄砲、輪投げ、スマートボール。景品を倒して持ち帰る遊び。',
+    input:'照準＋撃つ（2種類）', view:'横画面・屋台の陳列', time:60, target:10, life:1,
+    loop:'コルク鉄砲で景品を倒す。倒すほど高得点。',
+    why:'昭和の屋台のノリ。倒れた時の音が面白い。',
+    unity:'的はRigidbody2Dなしの位置アニメでも可。当たったら回転＋落下で倒す。',
+    hooks:['h_face','h_item','h_pose'], twist:'tw_price',
+    assets:['鉄砲','景品5種','棚','背景','HUD']
+  },
+  {
+    id:'g_putting', label:'パッティングゲーム', fam:'スポーツ', level:1,
+    eg:'パットゴルフ、みんなのGOLFのパター、ペーパーゴルフ。方向と強さだけ。',
+    input:'パワー＋方向（2種類）', view:'見下ろし・グリーン', time:60, target:3, life:1,
+    loop:'方向と強さを決めて打ち、カップに入れる。',
+    why:'狙って決まった時の快感。失敗も「惜しい」で終わる。',
+    unity:'ボールに速度を与えて摩擦で止める。カップは半径判定のみ。',
+    hooks:['h_leopard','h_face','h_item'], twist:'tw_wind',
+    assets:['ボール','カップ','旗','芝','壁','HUD']
+  },
+  {
+    id:'g_pong', label:'ポン（打ち返す）', fam:'アクション', level:1,
+    eg:'ポン、エアホッケー、ブロック崩しの原型。来た球を打ち返し続ける。',
+    input:'上下移動のみ（1種類）', view:'固定画面・左右対戦', time:60, target:5, life:3,
+    loop:'来た球を打ち返す。角度で相手を崩す。',
+    why:'最も原始的な面白さ。ルール説明が0秒。',
+    unity:'パドル2つ、球1つ。反射角は当たった位置で変える。',
+    hooks:['h_face','h_crowd','h_item'], twist:'tw_split',
+    assets:['パドル2','球','壁','背景','HUD']
+  },
+  {
+    id:'g_wall', label:'壁パンチ脱出', fam:'アクション', level:1,
+    eg:'壁を殴って壊す連打ゲー、Getting Over Itの脱出系。拳ひとつで外へ出る。',
+    input:'連打のみ（1種類）', view:'1人称・壁の前', time:60, target:1, life:1,
+    loop:'壁を殴り続けて壊し、外へ出る。',
+    why:'連打の手応えと壊れる演出。バカバカしさが笑いになる。',
+    unity:'壁のHPを減らし、0で破片を飛ばす。連打はクリック数でカウント。',
+    hooks:['h_face','h_pico','h_leopard'], twist:'tw_crack',
+    assets:['拳','壁','破片','背景','HUD']
+  },
+  {
+    id:'g_haystack', label:'わらの山から針を探す', fam:'カジュアル', level:1,
+    eg:'宝探し、間違い探し、大量の山から1つだけ当たりを探す。',
+    input:'探す（クリック）のみ（1種類）', view:'固定画面・山', time:60, target:1, life:1,
+    loop:'山をかき分けて、1本の針を見つける。',
+    why:'見つけた瞬間の快感。外れても次を探したくなる。',
+    unity:'山をグリッドに分割し、1マスだけ針。クリックで掘る。',
+    hooks:['h_item','h_face','h_leopard'], twist:'tw_decoy',
+    assets:['山','針','手','背景','HUD']
+  },
+  {
+    id:'g_tsubo', label:'ツボオジ（壺に投げ入れる）', fam:'カジュアル', level:1,
+    eg:'壺に玉を投げ入れる遊び、スマートボール、けん玉の皿。溜めて離す。',
+    input:'溜め＋離す（1種類）', view:'横画面・壺', time:60, target:5, life:1,
+    loop:'タイミングよく離して、壺に玉を入れる。',
+    why:'溜めと発射の気持ちよさ。入った瞬間の音が耳に残る。',
+    unity:'バネの力で玉を飛ばす。壺はTrigger判定のみ。',
+    hooks:['h_face','h_pose','h_item'], twist:'tw_wait',
+    assets:['玉','壺','的','背景','HUD']
+  }
+];
+
+/* ---------------- 18〜20歳の友人ウケ（推薦の材料） ----------------
+   pop  : 1=ふつう 2=ウケやすい 3=かなりウケやすい
+   hot  : 今年の学生に人気／作りたい人が多い型
+   why  : 推薦の理由としてそのまま画面に出す1文
+   推薦は「好きなゲームの傾向」＋この pop/hot の2軸で決める（乱数なし）
+   ------------------------------------------------------------ */
+PK2.POP = {
+  g_platx:     {pop:3, hot:true,  why:'マリオ・ロックマン型は18〜20歳でも定番。動画で見ても一瞬で伝わる。'},
+  g_rhythm:    {pop:3, hot:true,  why:'今年はリズムゲームを作りたい学生が多い。音に乗るだけで伝わる。'},
+  g_otoshimono:{pop:3, hot:false, why:'スイカゲーム以降の定番。短い動画でバズる形で、見た瞬間に分かる。'},
+  g_puzzact:   {pop:3, hot:false, why:'ぷよぷよ・ツムツムで全員が遊んだ経験あり。連鎖の画がそのまま映える。'},
+  g_horde:     {pop:2, hot:false, why:'ヴァンパイアサバイバーズ系。敵が溶ける画がSNS向き。'},
+  g_vshoot:    {pop:2, hot:false, why:'東方系の弾幕は根強い人気。'},
+  g_platy:     {pop:2, hot:false, why:'アイスクライマー型は、笑える失敗がそのまま撮れる。'},
+  g_run:       {pop:2, hot:false, why:'操作が1つ。初見の友だちでも3秒で笑ってもらえる。'},
+  g_run3d:     {pop:2, hot:false, why:'Temple Run系はスマホで見慣れている。'},
+  g_hshoot:    {pop:2, hot:false, why:'横シューティングは説明が要らない。'},
+  g_breakout:  {pop:2, hot:false, why:'ルール説明0秒。壊れる音と粒が気持ちいい。'},
+  g_fishing:   {pop:2, hot:false, why:'釣りの「来た！」は、見ている人も一緒に盛り上がる。'},
+  g_batting:   {pop:2, hot:false, why:'当たった瞬間が全員に伝わる。'},
+  g_rail:      {pop:1, hot:false, why:'雰囲気は出るが、3Dで作る負担が重い。'},
+  g_actpuzzle: {pop:1, hot:false, why:'解けた瞬間は気持ちいいが、見ている人には伝わりにくい。'},
+  g_gun:       {pop:1, hot:false, why:'競技寄りで、地味に見られやすい。'},
+  g_shot:      {pop:1, hot:false, why:'ノリは良いが、動きが少なく見える。'},
+  g_putting:   {pop:1, hot:false, why:'静かで、短時間だと盛り上がりにくい。'},
+  g_pong:      {pop:1, hot:false, why:'古典的すぎて「知ってる」で終わりやすい。'},
+  g_wall:      {pop:1, hot:false, why:'連打だけだと、すぐ飽きられる。'},
+  g_haystack:  {pop:1, hot:false, why:'探すだけなので、画面が動かない。'},
+  g_tsubo:     {pop:1, hot:false, why:'単発の当たり外れで、盛り上がりが続かない。'}
+};
+PK2.popOf = function(id){ return PK2.POP[id] || {pop:1, hot:false, why:''}; };
+
+/* ---------------- ピコ太郎の乗せ方（IPの1手） ----------------
+   ゲームの「仕組み」に1か所だけ入れる。見た目だけにしない。
+   ------------------------------------------------------------ */
+PK2.HOOKS = [
+  {id:'h_pico', label:'ピコ太郎が主役（操作キャラ）', word:'ピコ太郎',
+   one:'動かすのがピコ太郎本人。走る・跳ぶ・殴るがそのまま彼の動きになる。',
+   why:'動かしているだけで笑える。スクショがそのままネタになる。',
+   impl:'PlayerのSpriteにピコ太郎（角刈りパンチ／鼻ちょいがけ眼鏡／口髭／ヒョウ柄）を置く。歩きは2コマの上下動だけでよい。',
+   concept:'キャラクターを差し替えると意味が変わるタイプ。'}, 
+  {id:'h_item', label:'Pen / Apple / Pineapple が弾とアイテム', word:'ペン・アップル・パイン',
+   one:'撃つもの・集めるものが、Pen・Apple・Pineapple。3つ揃うとボーナス。',
+   why:'見た瞬間に元ネタが分かる。3種類の色分けがそのままゲームの記号になる。',
+   impl:'弾Prefabを3種作り、色と形で区別。3種を連続で取ると「PPAP!」で加点。',
+   concept:'IPの「組み合わせ」をルールに埋め込むタイプ。'},
+  {id:'h_face', label:'顔が的に（間抜けな標的）', one:'的がピコ太郎の顔。当たると真顔のまま吹っ飛ぶ。',
+   word:'ピコ顔',
+   why:'シュールで笑える。他人に見せたくなる画になる。',
+   impl:'的PrefabのSpriteを顔だけにする。命中で回転＋吹き飛び＋「Oh!」の吹き出し。',
+   concept:'「真面目にバカをする」を当たり方で表現するタイプ。'},
+  {id:'h_body', label:'体の一部が地形（眼鏡・髭が足場）', word:'眼鏡ステージ',
+   one:'鼻の眼鏡や口髭が、そのまま足場や障害物になる。',
+   why:'見たことのない画面になる。構造そのものが突飛。',
+   impl:'足場Prefabに眼鏡・髭・ヒョウ柄の3種を用意。見た目が違うだけで判定は同じ。',
+   concept:'IPの形をレベルの構造に変換するタイプ。'},
+  {id:'h_pose', label:'ポーズと掛け声が判定', word:'ポーズ',
+   one:'決まったポーズを再現すると成功。「Pen!」の掛け声が判定になる。',
+   why:'身体を動かしたくなる。真似したくなる構造がそのまま遊び。',
+   impl:'4方向のポーズ画像を順番に表示し、入力の一致で判定。成功で「Pen!」を再生。',
+   concept:'「真似したくなる」を入力に変換するタイプ。'},
+  {id:'h_leopard', label:'ヒョウ柄がギミック', word:'ヒョウ柄',
+   one:'ヒョウ柄の床は滑る／加速する／跳ねる。柄がルールになる。',
+   why:'画面の記号が即座にルールとして読める。説明が1文で済む。',
+   impl:'床タイルのTagで摩擦と反発を変える。色は黄色×黒で統一。',
+   concept:'視覚記号をルールに変換するタイプ。'},
+  {id:'h_crowd', label:'ピコ太郎が増殖する', word:'増殖',
+   one:'敵も味方もピコ太郎。数が増えるほど画面がおかしくなる。',
+   why:'数が増える絵が単純に面白い。SNSで見た目が強い。',
+   impl:'同じPrefabを色違いで使い回す。上限数を決めてObjectPoolで回す。',
+   concept:'反復と増殖をそのまま画面の強さにするタイプ。'},
+  {id:'h_disguise', label:'変身・着ぐるみ', word:'変身',
+   one:'敵がピコ太郎の着ぐるみを着ている。倒すと中から本人が出てくる。',
+   why:'オチが分かっているのに笑える。倒す動機が生まれる。',
+   impl:'敵Prefabに2段階のSpriteを用意。HP0で差し替え＋「Oops!」を出す。',
+   concept:'オチをゲームの報酬にするタイプ。'}
+];
+
+/* ---------------- 刺激の1手（面白さの中心） ---------------- */
+PK2.TWISTS = [
+  {id:'tw_dense', label:'増え続ける', one:'時間とともに数が増える（下限つき）',
+   how:'出現間隔を毎秒1%短くする。下限0.25秒で止める。',
+   effect:'序盤の余裕が、終盤の切迫に変わる。'},
+  {id:'tw_speed', label:'最後に加速', one:'残り10秒で全部が速くなる',
+   how:'残り10秒で速度に1.6倍。画面の縁を赤く。',
+   effect:'最後まで気が抜けない。差がつく。'},
+  {id:'tw_shrink', label:'足場が消える', one:'乗った足場が1秒後に消える',
+   how:'接触で0.8秒後に非表示。復活しない。',
+   effect:'同じ場所に留まれない。常に動く理由が生まれる。'},
+  {id:'tw_rise', label:'下から迫る', one:'下からじわじわ迫ってくる',
+   how:'一定速度で上昇する壁。触れたらミス。',
+   effect:'上る理由が自動で生まれる。説明が要らない。'},
+  {id:'tw_wall', label:'動く障害物', one:'地形が左右に往復して道を塞ぐ',
+   how:'PingPongで往復。判定は見た目より小さく。',
+   effect:'覚えたパターンが使えなくなる。'},
+  {id:'tw_chain', label:'連鎖で跳ねる', one:'続けて成功すると得点が倍々',
+   how:'連続回数で倍率（1,2,3,4倍）。ミスで1倍に戻る。',
+   effect:'「もう一回」の理由が数値で見える。'},
+  {id:'tw_grow', label:'積み上がる', one:'画面が埋まるほど加点',
+   how:'残りマスが少ないほど1回の得点を増やす。',
+   effect:'終盤に逆転の余地が生まれる。'},
+  {id:'tw_order', label:'順番がある', one:'決まった順番で押すと成功',
+   how:'3〜5個の順序を提示し、入力の並びで判定。',
+   effect:'覚える楽しさと手応えが同時に来る。'},
+  {id:'tw_split', label:'分裂する', one:'壊すと2つに割れて増える',
+   how:'破壊時に2つ生成（上限あり）。',
+   effect:'壊すほど忙しくなる。'},
+  {id:'tw_aim', label:'狙いながら', one:'移動と狙いを同時に扱う',
+   how:'照準はマウス追従、撃つは1ボタン。',
+   effect:'上級者ほど上手くなる。'},
+  {id:'tw_wait', label:'見せてから出す', one:'出す直前に必ず予告がある',
+   how:'出現0.3秒前に影と点滅。必ずその位置に出る。',
+   effect:'理不尽が消え、覚える楽しさが出る。'},
+  {id:'tw_zone', label:'3段階の判定', one:'PERFECT / GOOD / MISS で結果が変わる',
+   how:'中心からのズレで3段階。0.08 / 0.18秒の窓。',
+   effect:'「あと少し」が最高の快感になる。'},
+  {id:'tw_price', label:'高得点ほど小さい的', one:'小さい的に当てるほど得点が高い',
+   how:'的ごとに半径と得点を持たせる。',
+   effect:'狙う順番を考えるようになる。'},
+  {id:'tw_wind', label:'読めない要素が1つ', one:'風が一定周期で変わる（周期は固定）',
+   how:'サイン波で横方向の力をかける。周期は変えない。',
+   effect:'覚えられるのに毎回違う。'},
+  {id:'tw_crack', label:'ひびが入る', one:'叩くほど壊れて、最後に一気に崩れる',
+   how:'HPでSpriteを3段階に差し替え。0で破片を飛ばす。',
+   effect:'手応えが目で見える。'},
+  {id:'tw_decoy', label:'偽物を混ぜる', one:'本物と似た偽物が混ざる',
+   how:'同じPrefabの色違い。正解フラグだけfalse。',
+   effect:'「見る」という行為が生まれる。'}
+];
+
+/* ---------------- 制作経験・ゴール ---------------- */
+PK2.EXP = [
+  {id:'beginner', label:'Unityはほぼ初めて', note:'移動・当たり判定・スコアが未経験', cap:1},
+  {id:'some',     label:'少し触ったことがある', note:'PrefabとColliderは分かる', cap:2},
+  {id:'used',     label:'何本か作ったことがある', note:'SceneとScriptを自分で組める', cap:3}
+];
+PK2.GOALS = [
+  {id:'web',   label:'まずWEBで遊べる形にしたい', note:'ブラウザで動けばOK。1時間で手応え。'},
+  {id:'unity', label:'Unityまで持っていきたい', note:'素材と手順を一式そろえる。'},
+  {id:'both',  label:'両方（WEBで確認→Unity）', note:'手順を踏んで確実に進める。'}
+];

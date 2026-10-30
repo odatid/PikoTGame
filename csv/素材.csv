@@ -1,0 +1,24 @@
+id,role,name,size,fake,priority,path
+a_pico,キャラクター,ピコ太郎（記号化）,256×256,黄色×黒ヒョウ柄の体／黒い角刈りパンチ（縮れ頭）／鼻にちょいがけの黒縁眼鏡／口髭,中,Assets/Sprites/Player
+a_pico_dot,キャラクター,ピコ太郎 ドット絵,64×64（4倍表示）,16×16ドットの黄色×黒／角刈りパンチ／鼻にちょいがけ眼鏡／口髭,中,Assets/Sprites/Player
+a_pen,アイテム,Pen,128×128,白い棒＋黒い線1本,低,Assets/Sprites/Items
+a_apple,アイテム,Apple,128×128,赤い丸＋緑の葉,低,Assets/Sprites/Items
+a_pine,アイテム,Pineapple,128×128,黄色い楕円＋緑のトゲ,低,Assets/Sprites/Items
+a_leopard,背景,ヒョウ柄ステージ,1920×1080,黄色地に黒い斑点のタイル,高,Assets/Sprites/BG
+a_floor,背景,床・ライン,1920×200,黒い帯＋黄色のライン,低,Assets/Sprites/BG
+a_basket,UI,受け皿（籠）,256×128,茶色の台形＋ラベル,中,Assets/Sprites/UI
+a_sunglass,UI,サングラス,128×64,黒い2つの丸＋ブリッジ,低,Assets/Sprites/UI
+a_badge,UI,コンボバッジ,128×128,黄色い星,低,Assets/Sprites/UI
+a_fx_ok,エフェクト,成功,256×256,黄色い星の拡散,低,Assets/Prefabs/FX
+a_fx_miss,エフェクト,ミス,256×256,赤い×の拡散＋画面揺れ,低,Assets/Prefabs/FX
+a_fx_pop,エフェクト,得点ポップ,128×128,数字が上に跳ねる,低,Assets/Prefabs/FX
+a_block,足場,ブロック,128×128,茶色の四角＋黒い線,低,Assets/Sprites/Stage
+a_enemy,敵,敵,128×128,紫の丸＋目2つ,中,Assets/Sprites/Enemy
+a_bullet,弾,弾,32×32,白い丸＋黄色い縁,低,Assets/Sprites/Bullet
+a_coin,アイテム,コイン,64×64,黄色い丸＋白い光,低,Assets/Sprites/Items
+a_wall,背景,壁,128×128,灰色の四角＋影,低,Assets/Sprites/Stage
+a_goal,目標,ゴール,128×192,赤い旗＋白いポール,中,Assets/Sprites/Stage
+a_cube3d,3D,キューブ（Primitive）,−,Unity標準のCubeをそのまま使う,低,（生成）
+a_panel,UI,問題パネル,800×300,白い角丸＋黒縁,低,Assets/Sprites/UI
+a_arrow,UI,矢印,96×96,白い三角＋黒縁,低,Assets/Sprites/UI
+a_door,ギミック,扉,128×192,茶色の四角＋金の取っ手,中,Assets/Sprites/Stage

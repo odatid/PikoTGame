@@ -1,0 +1,11 @@
+key,value,説明
+version,1.0.0,DBの版。変更したら上げる
+ip,0.3,スコア重み：IP一致
+verb,0.22,スコア重み：動詞一致
+emo,0.18,スコア重み：感情一致
+aud,0.12,スコア重み：対象一致
+tech,0.18,スコア重み：技術適合
+warningRatio,0.8,整合度がこれを下回ったら警告
+maxTwist,1,1ゲームに入れる刺激の数（変えない）
+bpm,128,ピコ太郎BGMのBPM
+picoSeCount,8,SEの数

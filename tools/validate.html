@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>PK//PROTO DB検証</title>
+<style>
+  body{font:13px/1.6 monospace;background:#111;color:#0f0;padding:16px;white-space:pre-wrap}
+  h1{color:#ff0;font-size:14px}
+  .ng{color:#f55}.ok{color:#0f0}.wa{color:#fa0}
+</style>
+</head>
+<body>
+<h1>PK//PROTO 整合性チェック（data.js + engines.js + generate.js）</h1>
+<pre id="out">実行中...</pre>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/engines.js"></script>
+<script src="../assets/js/generate.js"></script>
+<script>
+(function(){
+'use strict';
+const L=[]; const log=(s)=>{ L.push(s); console.log(s); };
+const out=document.getElementById('out');
+
+/* ---- 1. 件数 ---- */
+const count = (x)=> Array.isArray(x) ? x.length : (x ? Object.keys(x).length : 0);
+const COUNTS = {
+  PATTERNS: count(PK.PATTERNS), TYPES: count(PK.TYPES), TWISTS: count(PK.TWISTS),
+  ENGINES: count(PK.ENGINES), PREFABS: count(PK.PREFABS), JUICE: count(PK.JUICE),
+  AUDIENCES: count(PK.AUDIENCES), IP_VALUES: count(PK.IP_VALUES), EMOTIONS: count(PK.EMOTIONS),
+  WHY_PICO: count(PK.WHY_PICO), WANT_TO: count(PK.WANT_TO), PERCEPTION: count(PK.PERCEPTION),
+  SKILLS: count(PK.SKILLS), CHALLENGES: count(PK.CHALLENGES),
+  PICO_SE: count(PK.PICO_SE), DNA_FACTS: count(PK.DNA_FACTS),
+  UI_MASTER: count(PK.UI_MASTER), ASSET_MASTER: count(PK.ASSET_MASTER), SE_MASTER: count(PK.SE_MASTER)
+};
+const VERBS = PK.VERB_GROUPS.reduce((a,g)=>a+g.verbs.length,0);
+COUNTS.VERBS = VERBS;
+log('COUNTS ' + JSON.stringify(COUNTS));
+
+/* ---- 2. エンジンIDの実在 ---- */
+const ENG = Object.keys(PK.ENGINES).sort();
+log('ENGINE_IDS ' + ENG.join(','));
+
+const dangling = (label, pairs)=>{ // pairs: [ref, owner]
+  const bad = pairs.filter(([r])=>!r || r==='');
+  const miss = pairs.filter(([r,ok])=>r && !ok).map(([r,o])=>r+'@'+o);
+  log('CHK_' + label + ' missing=' + miss.length + (miss.length? ' → ' + miss.slice(0,40).join(' , ') : ''));
+};
+
+/* TYPES.engines → ENGINES */
+(function(){
+  const miss=[];
+  PK.TYPES.forEach(t=>t.engines.forEach(e=>{ if(!PK.ENGINES[e]) miss.push(e+'@'+t.id); }));
+  log('CHK_TYPES_ENGINES missing=' + miss.length + (miss.length?' → '+miss.join(' , '):''));
+})();
+(function(){
+  const miss=[];
+  PK.PATTERNS.forEach(p=>{ if(!PK.ENGINES[p.engine]) miss.push(p.id+':'+p.engine); });
+  log('CHK_PATTERNS_ENGINE missing=' + miss.length + (miss.length?' → '+miss.join(' , '):''));
+})();
+(function(){
+  const miss=[];
+  PK.PATTERNS.forEach(p=>{
+    (p.ui||[]).forEach(([id])=>{ if(!PK.UI_MASTER[id]) miss.push('ui:'+id+'@'+p.id); });
+    (p.assets||[]).forEach(id=>{ if(!PK.ASSET_MASTER[id]) miss.push('asset:'+id+'@'+p.id); });
+    (p.se||[]).forEach(id=>{ if(!PK.SE_MASTER[id]) miss.push('se:'+id+'@'+p.id); });
+    Object.keys(p.ip||{}).forEach(id=>{ if(!PK.IP_VALUES.some(x=>x.id===id)) miss.push('ip:'+id+'@'+p.id); });
+    (p.emo||[]).forEach(id=>{ if(!PK.EMOTIONS.some(x=>x.id===id)) miss.push('emo:'+id+'@'+p.id); });
+    (p.aud||[]).forEach(id=>{ if(!PK.AUDIENCES.some(x=>x.id===id)) miss.push('aud:'+id+'@'+p.id); });
+  });
+  log('CHK_PATTERN_REFS missing=' + miss.length + (miss.length?' → '+miss.slice(0,60).join(' , '):''));
+})();
+(function(){
+  const miss=[];
+  PK.TWISTS.forEach(t=>{
+    (t.fit||[]).forEach(e=>{ if(!PK.ENGINES[e]) miss.push('fit:'+e+'@'+t.id); });
+    (t.verbs||[]).forEach(v=>{ if(!VERB_LABELS().has(v)) miss.push('verb:'+v+'@'+t.id); });
+  });
+  log('CHK_TWIST_REFS missing=' + miss.length + (miss.length?' → '+miss.slice(0,40).join(' , '):''));
+  function VERB_LABELS(){ const s=new Set(); PK.VERB_GROUPS.forEach(g=>g.verbs.forEach(v=>s.add(v.label))); return s; }
+})();
+(function(){
+  const labels=new Set(); PK.VERB_GROUPS.forEach(g=>g.verbs.forEach(v=>labels.add(v.label)));
+  const miss=[]; PK.VERB_GROUPS.forEach(g=>g.verbs.forEach(v=>{ if(v.pat && !PK.PATTERNS.some(p=>p.id===v.pat)) miss.push(v.id+':'+v.pat); }));
+  log('CHK_VERB_PAT missing=' + miss.length + (miss.length?' → '+miss.join(' , '):''));
+  const tm=Object.keys(PK.SUBVERB_TWIST||{}).filter(v=>!labels.has(v));
+  log('CHK_SUBVERB_TWIST_UNKNOWN=' + tm.length + (tm.length?' → '+tm.join(' , '):''));
+  const sm=Object.keys(PK.SUBVERB||{}).filter(v=>!labels.has(v));
+  log('CHK_SUBVERB_UNKNOWN=' + sm.length + (sm.length?' → '+sm.join(' , '):''));
+})();
+(function(){
+  const miss=[];
+  PK.WHY_PICO.forEach(w=>(w.tags||[]).forEach(t=>{ if(!PK.IP_VALUES.some(x=>x.id===t)) miss.push('why:'+t+'@'+w.id); }));
+  PK.PERCEPTION.forEach(w=>(w.tags||[]).forEach(t=>{ if(!PK.IP_VALUES.some(x=>x.id===t)) miss.push('perc:'+t+'@'+w.id); }));
+  PK.DNA_FACTS.forEach(w=>(w.tags||[]).forEach(t=>{ if(!PK.IP_VALUES.some(x=>x.id===t)) miss.push('fact:'+t+'@'+w.id); }));
+  log('CHK_TAG_REFS missing=' + miss.length + (miss.length?' → '+miss.join(' , '):''));
+})();
+(function(){
+  const miss=[];
+  Object.keys(PK.ENGINES).forEach(e=>{
+    (PK.ENGINES[e].mid||[]).forEach(m=>{ if(m.p && !PK.PREFABS[m.p]) miss.push('mid:'+m.p+'@'+e); });
+    (PK.ENGINES[e].comps||[]).forEach(c=>{ if(c[1] && !PK.PREFABS[c[1]]) miss.push('comp:'+c[1]+'@'+e); });
+    (PK.ENGINES[e].juice||[]).forEach(j=>{ if(!PK.JUICE[j]) miss.push('juice:'+j+'@'+e); });
+  });
+  log('CHK_ENGINE_REFS missing=' + miss.length + (miss.length?' → '+miss.slice(0,40).join(' , '):''));
+})();
+
+/* ---- 3. 型 ⇄ 案 の対応 ---- */
+(function(){
+  const engToTypes={};
+  PK.TYPES.forEach(t=>t.engines.forEach(e=>{ (engToTypes[e]=engToTypes[e]||[]).push(t.id); }));
+  const globalEngineSet = new Set([].concat.apply([], PK.TYPES.map(t=>t.engines)));
+
+  const typesNoPattern = PK.TYPES.filter(t=>!PK.PATTERNS.some(p=>t.engines.includes(p.engine)));
+  log('CHK_TYPES_WITHOUT_PATTERN=' + typesNoPattern.length + (typesNoPattern.length?' → '+typesNoPattern.map(t=>t.id+'('+t.label+')').join(' , '):''));
+
+  const enginesNoType = ENG.filter(e=>!globalEngineSet.has(e));
+  log('CHK_ENGINES_NOT_SELECTABLE=' + enginesNoType.length + (enginesNoType.length?' → '+enginesNoType.join(' , '):''));
+  const enginesNoPattern = ENG.filter(e=>!PK.PATTERNS.some(p=>p.engine===e));
+  log('CHK_ENGINES_WITHOUT_PATTERN=' + enginesNoPattern.length + (enginesNoPattern.length?' → '+enginesNoPattern.join(' , '):''));
+
+  const patNoType = PK.PATTERNS.filter(p=>!globalEngineSet.has(p.engine));
+  log('CHK_PATTERNS_UNREACHABLE_BY_TYPE=' + patNoType.length + (patNoType.length?' → '+patNoType.map(p=>p.id+'('+p.engine+')').join(' , '):''));
+
+  /* 型を「すべて」選んだ場合に到達できる案の数 */
+  const reach = PK.PATTERNS.filter(p=>globalEngineSet.has(p.engine)).length;
+  log('REACHABLE_PATTERNS_BY_TYPES=' + reach + '/' + PK.PATTERNS.length);
+})();
+
+/* ---- 4. 3分以内・操作の数 ---- */
+(function(){
+  const over = PK.PATTERNS.filter(p=>p.duration>180);
+  log('CHK_DURATION_OVER_180=' + over.length + (over.length?' → '+over.map(p=>p.id+':'+p.duration).join(','):''));
+  const dist={}; PK.PATTERNS.forEach(p=>{ dist[p.duration]=(dist[p.duration]||0)+1; });
+  log('DURATION_DIST ' + JSON.stringify(dist));
+  const fam={}; PK.PATTERNS.forEach(p=>{ fam[p.family]=(fam[p.family]||0)+1; });
+  log('FAMILY_DIST ' + JSON.stringify(fam));
+  const lv={}; PK.PATTERNS.forEach(p=>{ lv[p.level]=(lv[p.level]||0)+1; });
+  log('LEVEL_DIST ' + JSON.stringify(lv));
+  const eng={}; PK.PATTERNS.forEach(p=>{ eng[p.engine]=(eng[p.engine]||0)+1; });
+  log('PATTERN_PER_ENGINE ' + JSON.stringify(eng));
+})();
+
+/* ---- 4b. 入力の種類（操作は1〜2種類という制約の確認） ---- */
+(function(){
+  const INPUT_RANK = {
+    '1ボタン':1, 'タップ':1, 'クリック':1, 'タップ／クリック':1, 'クリック連打':1, 'タップ／クリック連打':1,
+    '2択':1, '2択（左右）':1,
+    '左右移動':1, '自動ラン':1,
+    '方向キー':2, '4方向移動':2, '3キー':2, '4キー':2,
+    'ドラッグ':2, '左右＋ジャンプ':2, '上下＋自動射撃':2,
+    '4方向＋自動射撃':2, '前後＋左右旋回':3, '自動＋左右':1
+  };
+  const dist={}, unknown=[], over3=[];
+  PK.PATTERNS.forEach(p=>{
+    const n = INPUT_RANK[p.input];
+    if(n===undefined) unknown.push(p.id+':'+p.input);
+    else { dist[n]=(dist[n]||0)+1; if(n>2) over3.push(p.id+':'+p.input); }
+  });
+  log('INPUT_RANK_DIST ' + JSON.stringify(dist));
+  log('CHK_INPUT_UNKNOWN=' + unknown.length + (unknown.length?' → '+unknown.join(' , '):''));
+  log('CHK_INPUT_OVER_2=' + over3.length + (over3.length?' → '+over3.join(' , '):''));
+})();
+
+/* ---- 4c. 似ている案（family・engine・動詞・IPの重なり） ---- */
+(function(){
+  const pairs=[];
+  for(let i=0;i<PK.PATTERNS.length;i++){
+    for(let j=i+1;j<PK.PATTERNS.length;j++){
+      const a=PK.PATTERNS[i], b=PK.PATTERNS[j];
+      const setA=new Set(Object.keys(a.ip||{})), setB=new Set(Object.keys(b.ip||{}));
+      const inter=[...setA].filter(x=>setB.has(x)).length;
+      const uni=new Set([...setA,...setB]).size || 1;
+      const ipJ = inter/uni;
+      const vbOverlap = (a.verbs||[]).filter(v=>(b.verbs||[]).includes(v)).length;
+      const sameEngine = a.engine===b.engine;
+      const sameFamily = a.family===b.family;
+      /* 「似ている」判定：IPの重なりが高く、動詞かfamilyが同じ */
+      if((ipJ>=0.5 && (vbOverlap>0 || sameFamily)) || (sameEngine && ipJ>=0.5)){
+        pairs.push({a:a.id,b:b.id,ipJ:+ipJ.toFixed(2),vb:vbOverlap,eng:a.engine,fam:a.family});
+      }
+    }
+  }
+  pairs.sort((x,y)=> y.ipJ-x.ipJ || y.vb-x.vb);
+  log('SIMILAR_PAIRS=' + pairs.length);
+  pairs.slice(0,12).forEach(p=>log('  SIM ' + p.a + '~' + p.b + ' ipJaccard=' + p.ipJ + ' 共通動詞=' + p.vb + ' engine=' + p.eng + ' family=' + p.fam));
+})();
+
+/* ---- 4d. 型ごとの「作れそうか」（手引きの段数と所要分） ---- */
+(function(){
+  const ENG = Object.keys(PK.ENGINES);
+  const noMid = ENG.filter(e=>!((PK.ENGINES[e].mid||[]).length));
+  log('CHK_ENGINES_NO_GUIDE=' + noMid.length + (noMid.length?' → '+noMid.join(','):''));
+  const heavy=[];
+  ENG.forEach(e=>{
+    const mid=PK.ENGINES[e].mid||[];
+    const mins=mid.reduce((a,m)=>a+(m.m||15),0) + 40; /* GUIDE_FIRST 10 + GUIDE_LAST 30 の概算 */
+    if(mins>240) heavy.push(e+':'+mins+'分/'+mid.length+'段');
+  });
+  log('CHK_ENGINES_HEAVY_OVER_240MIN=' + heavy.length + (heavy.length?' → '+heavy.join(' , '):''));
+  /* 型→エンジンのうち、重いエンジンしか持たない型 */
+  const heavySet=new Set(heavy.map(h=>h.split(':')[0]));
+  const onlyHeavy = PK.TYPES.filter(t=>t.engines.every(e=>heavySet.has(e)));
+  log('TYPES_ONLY_HEAVY=' + onlyHeavy.length + (onlyHeavy.length?' → '+onlyHeavy.map(t=>t.id+'('+t.label+')').join(' , '):''));
+  const lv3 = PK.TYPES.filter(t=>t.level===3);
+  log('TYPES_LEVEL3=' + lv3.length + ' → ' + lv3.map(t=>t.id+'('+t.label+')').join(' , '));
+})();
+
+/* ---- 4e. SKILLS の prefab 参照（できること加点が効くか） ---- */
+(function(){
+  const broken = PK.SKILLS.filter(k=>k.prefab && !PK.PREFABS[k.prefab]);
+  log('CHK_SKILLS_PREFAB_BROKEN=' + broken.length + (broken.length?' → '+broken.map(k=>k.id+'→'+k.prefab).join(' , '):''));
+  const subBroken = Object.entries(PK.SUBVERB||{}).filter(([,v])=>v.p && !PK.PREFABS[v.p]);
+  log('CHK_SUBVERB_PREFAB_BROKEN=' + subBroken.length + (subBroken.length?' → '+subBroken.map(([k,v])=>k+'→'+v.p).join(' , '):''));
+  const fsBroken = Object.entries(PK.FIRST_STEP||{}).filter(([,v])=>v.prefab && !PK.PREFABS[v.prefab]);
+  log('CHK_FIRSTSTEP_BROKEN=' + fsBroken.length + (fsBroken.length?' → '+fsBroken.map(([k,v])=>k+'→'+v.prefab).join(' , '):''));
+})();
+
+/* ---- 4f. パターン側の動詞が動詞マスタに実在するか（動詞一致が取れるか） ---- */
+(function(){
+  const labels=new Set(); PK.VERB_GROUPS.forEach(g=>g.verbs.forEach(v=>labels.add(v.label)));
+  const rows=[];
+  PK.PATTERNS.forEach(p=>{
+    const bad=(p.verbs||[]).filter(v=>!labels.has(v));
+    if(bad.length) rows.push(p.id+'('+p.family+'):'+bad.join('/'));
+  });
+  log('CHK_PATTERN_VERBS_NOT_IN_MASTER patterns=' + rows.length);
+  rows.forEach(r=>log('  PV ' + r));
+  const totalBad = PK.PATTERNS.reduce((a,p)=>a+(p.verbs||[]).filter(v=>!labels.has(v)).length,0);
+  log('CHK_PATTERN_VERB_REFS_BAD_TOTAL=' + totalBad);
+})();
+
+/* ---- 4g. 全24案でプロンプトを組み立て、壊れていないか ---- */
+(function(){
+  const s = {
+    whyPico:'why_combine', wantTo:'w_laugh', perception:'p_combine',
+    audience:'aud_teen', ips:['ip_combine','ip_rhythm','vis_leopard'], emos:['emo_comfort','emo_hype'],
+    verbs:['v_collect','v_avoid'], types:[], skills:['sk_move','sk_score','sk_jump','sk_cam'],
+    challenges:['ch_juice'], exp:'some', dim:'both', date:'2026-10-30'
+  };
+  let bad=0;
+  PK.PATTERNS.forEach(p=>{
+    try{
+      const prop = PK.gen.buildProposal(s, [{p}], 0, null);
+      const blob = [PK.gen.promptPlan(prop), PK.gen.promptImage(prop,false), PK.gen.promptImage(prop,true),
+                    PK.gen.promptCode(prop), PK.gen.formsText(prop), PK.gen.bgmPrompt(prop),
+                    PK.gen.tuningCSharp(prop.engine), JSON.stringify(PK.gen.managementProposal(s,prop))].join('\n');
+      const hasU = blob.indexOf('undefined')>=0, hasN = /\bNaN\b/.test(blob);
+      if(hasU||hasN){ bad++; log('  BAD_PROMPT ' + p.id + ' undefined=' + hasU + ' NaN=' + hasN); }
+    }catch(e){ bad++; log('  THROW ' + p.id + ' ' + e.message); }
+  });
+  log('CHK_ALL_PATTERN_PROMPTS_BAD=' + bad + '/24');
+})();
+
+/* ---- 5. 設問が推薦を変えるか（1問だけ動かして top1 が変わるか） ---- */
+(function(){
+  const base = {
+    whyPico:'why_wordless', wantTo:'w_laugh', perception:'p_combine',
+    audience:'aud_teen', ips:['ip_combine','ip_rhythm'], emos:['emo_comfort','emo_hype'],
+    verbs:['v_collect'], types:[], skills:[], challenges:[], exp:'some', dim:'both'
+  };
+  const top1 = (s)=>{ const r=PK.gen.recommend(s); return r[0] ? r[0].p.id : 'none'; };
+
+  const tests = [
+    ['WHY_PICO', PK.WHY_PICO.map(x=>x.id), 'whyPico'],
+    ['WANT_TO', PK.WANT_TO.map(x=>x.id), 'wantTo'],
+    ['PERCEPTION', PK.PERCEPTION.map(x=>x.id), 'perception']
+  ];
+  tests.forEach(([label, values, key])=>{
+    const set = new Set();
+    values.forEach(v=>{ const s=Object.assign({}, base); s[key]=v; set.add(top1(s)); });
+    log('SENSITIVITY_' + label + ' distinctTop1=' + set.size + ' of ' + values.length + ' → ' + [...set].join(','));
+  });
+
+  /* 比較：採点に使われている設問 */
+  [['AUDIENCE','audience',PK.AUDIENCES.map(x=>x.id)],
+   ['VERB','verbs',PK.VERB_GROUPS.reduce((a,g)=>a.concat(g.verbs.map(v=>[v.id])),[])],
+   ['EMOTION','emos',PK.EMOTIONS.map(x=>[x.id])]
+  ].forEach(([label,key,values])=>{
+    const set=new Set();
+    values.forEach(v=>{ const s=Object.assign({},base); s[key]=v; set.add(top1(s)); });
+    log('SENSITIVITY_' + label + ' distinctTop1=' + set.size + ' of ' + values.length + ' → ' + [...set].join(','));
+  });
+})();
+
+/* ---- 6. 推薦の集中度（同じ案ばかり出ないか） ---- */
+(function(){
+  const verbIds = PK.VERB_GROUPS.reduce((a,g)=>a.concat(g.verbs.map(v=>v.id)),[]);
+  const hist = {}; let total=0;
+  verbIds.forEach((vid, vi)=>{
+    PK.AUDIENCES.forEach((a, ai)=>{
+      [['beginner',2],['some',2],['experienced',3]].forEach(([exp], ei)=>{
+        const s = {
+          whyPico:'why_wordless', wantTo:PK.WANT_TO[vi % PK.WANT_TO.length].id,
+          perception:PK.PERCEPTION[vi % PK.PERCEPTION.length].id,
+          audience:a.id,
+          ips:[PK.IP_VALUES[vi % PK.IP_VALUES.length].id, PK.IP_VALUES[(vi*7+3) % PK.IP_VALUES.length].id],
+          emos:[PK.EMOTIONS[ai % PK.EMOTIONS.length].id, PK.EMOTIONS[(vi+3) % PK.EMOTIONS.length].id],
+          verbs:[vid], types:[], skills:[], challenges:[], exp:exp, dim: ei===2?'3d':'both'
+        };
+        const r = PK.gen.recommend(s);
+        if(r[0]){ hist[r[0].p.id]=(hist[r[0].p.id]||0)+1; total++; }
+      });
+    });
+  });
+  const sorted = Object.entries(hist).sort((a,b)=>b[1]-a[1]);
+  log('RECO_DISTINCT_TOP1=' + sorted.length + '/' + PK.PATTERNS.length + ' patterns, total=' + total);
+  log('RECO_TOP10 ' + sorted.slice(0,10).map(([id,n])=>id+':'+n).join(' , '));
+  const never = PK.PATTERNS.filter(p=>!hist[p.id]).map(p=>p.id);
+  log('RECO_NEVER_TOP1=' + never.length + (never.length?' → '+never.join(','):''));
+  const share = sorted.slice(0,3).reduce((a,x)=>a+x[1],0) / total;
+  log('RECO_TOP3_SHARE=' + (share*100).toFixed(1) + '%');
+})();
+
+/* ---- 7. 必須の参照（generate.jsが使うグローバル） ---- */
+(function(){
+  ['FIRST_STEP','SUBVERB','SUBVERB_TWIST','PICO_SOUND','PICO_SE','PICO_LINES','JUICE','PREFABS','BGM_MASTER','DNA_FACTS','IP_PATCHES','DIMENSIONS','VERB_GROUPS','WEIGHTS','TYPES','PATTERNS','TWISTS','ENGINES','UI_MASTER','ASSET_MASTER','SE_MASTER','SKILLS','CHALLENGES','WHY_PICO','WANT_TO','PERCEPTION','EMOTIONS','AUDIENCES','IP_VALUES'].forEach(k=>{
+    if(PK[k]===undefined) log('MISSING_GLOBAL PK.' + k);
+  });
+  log('CHK_GLOBALS_DONE');
+  log('BGM_COVERAGE engines=' + ENG.length + ' withBGM=' + Object.keys(PK.BGM_MASTER).length);
+  const noBgm = ENG.filter(e=>!PK.BGM_MASTER[e]);
+  log('BGM_MISSING_FOR=' + noBgm.join(','));
+})();
+
+/* ---- 8. プロンプト組み立てが通るか（実データで1回試す） ---- */
+(function(){
+  try{
+    const s = {
+      whyPico:'why_combine', wantTo:'w_laugh', perception:'p_combine',
+      audience:'aud_teen', ips:['ip_combine','ip_rhythm','vis_leopard'], emos:['emo_comfort','emo_hype'],
+      verbs:['v_collect','v_avoid'], types:['t_collect'], skills:['sk_move','sk_score'], challenges:['ch_juice'],
+      exp:'some', dim:'both', date:'2026-10-30'
+    };
+    const ranked = PK.gen.recommend(s);
+    const prop = PK.gen.buildProposal(s, ranked, 0, null);
+    const outs = {
+      plan: PK.gen.promptPlan(prop), image: PK.gen.promptImage(prop,false),
+      code: PK.gen.promptCode(prop), forms: PK.gen.formsText(prop),
+      bgm: PK.gen.bgmPrompt(prop), tuning: PK.gen.tuningCSharp(prop.engine),
+      proposal: PK.gen.managementProposal(s, prop)
+    };
+    Object.entries(outs).forEach(([k,v])=>{
+      const str = typeof v==='string' ? v : JSON.stringify(v);
+      log('GEN_' + k + ' chars=' + str.length + ' undef=' + (str.indexOf('undefined')>=0 ? 'YES' : 'no') + ' nan=' + (/\bNaN\b/.test(str)?'YES':'no'));
+    });
+    log('GEN_TOP1=' + prop.patternId + ' / engine=' + prop.engine + ' / twist=' + prop.twist.id);
+  }catch(e){
+    log('GEN_ERROR ' + e.message);
+  }
+})();
+
+log('DONE');
+out.textContent = L.join('\n');
+})();
+</script>
+</body>
+</html>

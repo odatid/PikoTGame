@@ -1,0 +1,257 @@
+id,name,short,scene,comps,flow,tuning,juice
+E01,落下回避（左右移動）,上から落ちてくる物を左右に避ける,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [Timer] [LifeManager]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ TimerText        [TextMeshProUGUI]  ""60""
+│  │  ├─ LifeIcons        [HorizontalLayoutGroup]  ♥♥♥
+│  │  └─ ScoreText        [TextMeshProUGUI]
+│  └─ ResultPanel         [ResultManager]  (初期は非表示)
+├─ Player                 [PlayerMove] [SpriteRenderer] [CircleCollider2D]  Tag=Player
+├─ Spawner                [SpawnManager] [RandomSpawner] [SpeedUp]
+├─ FallRoot               (生成された障害物の親。空のGameObject)
+└─ Audio                  [SoundManager] [AudioSource]","[[""Player"", ""PlayerMove"", ""speed=8, clampX=±7.5"", ""左右移動""], [""Player"", ""CircleCollider2D"", ""radius=0.35, IsTrigger=ON"", ""当たり判定""], [""FallItem"", ""Rigidbody2D"", ""BodyType=Dynamic, gravityScale=1.2"", ""落下""], [""FallItem"", ""CircleCollider2D"", ""radius=0.5, IsTrigger=ON"", ""接触""], [""Spawner"", ""SpawnManager"", ""interval=0.75, prefab=FallingObject"", ""生成""], [""GameManager"", ""LifeManager"", ""max=3"", ""残機""]]",Input → PlayerMove(X座標) → CollisionJudge → LifeManager → ResultManager → Retry,"[[""moveSpeed"", 8, ""移動速度"", ""操作のキビキビ感""], [""fallSpeed"", 3, ""落下速度"", ""避ける猶予""], [""spawnInterval"", 0.75, ""出現間隔"", ""画面の密度""], [""speedUpPerSec"", 0.02, ""加速率"", ""後半の忙しさ""], [""maxLife"", 3, ""残機"", ""失敗の許容""], [""gameTime"", 60, ""制限時間"", ""1プレイの長さ""]]","dmg,recoil,shake,jumpCharge,landSquash,landDust,skid,freeze"
+E03,落下キャッチ（選別）,落ちてくる物のうち、必要なものだけを受ける,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ TargetIcon       [Image]  今回取るアイテムのアイコン
+│  │  ├─ ScoreText        [TextMeshProUGUI]
+│  │  ├─ TimerText        [TextMeshProUGUI]
+│  │  └─ LifeIcons        [HorizontalLayoutGroup]
+│  └─ ResultPanel         [ResultManager]
+├─ Player                 [PlayerMove] [BoxCollider2D]  Tag=Player
+├─ CatchZone              [BoxCollider2D IsTrigger]  Playerの子。受け判定の帯
+├─ Spawner                [SpawnManager] [RandomSpawner] [SpeedUp]
+└─ Audio                  [SoundManager]","[[""Player"", ""PlayerMove"", ""speed=8, clampX=±7"", ""左右移動""], [""CatchZone"", ""BoxCollider2D"", ""size=(1.2, 0.5), IsTrigger=ON"", ""受け判定""], [""Item"", ""Rigidbody2D"", ""gravityScale=0.9"", ""落下""], [""Item"", ""BoxCollider2D"", ""IsTrigger=ON"", ""接触""], [""Spawner"", ""RandomSpawner"", ""need:unneed = 1:2"", ""種類の比率""], [""GameManager"", ""ScoreManager"", ""need=+1, unneed=-1"", ""得点""]]",Spawn(種類抽選) → FallingObject → CatchZone → Score/Life → HUD → Result,"[[""moveSpeed"", 8, ""移動速度"", ""取りやすさ""], [""fallSpeed"", 2.2, ""落下速度"", ""判断の猶予""], [""spawnInterval"", 0.9, ""出現間隔"", ""同時に画面にある数""], [""needRatio"", 0.33, ""必要アイテムの割合"", ""選別の忙しさ""], [""targetCount"", 20, ""成功に必要な数"", ""1プレイの達成感""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","dmg,recoil,hitSpark,popup,landSquash,bloom,comboscale"
+E06,タイミング一致,表示に合わせて1つ（または方向）のキーを押す,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ JudgeText        [TextMeshProUGUI]  PERFECT/GOOD/MISS
+│  │  ├─ ComboText        [TextMeshProUGUI]
+│  │  ├─ TimerText        [TextMeshProUGUI]
+│  │  └─ ScoreText        [TextMeshProUGUI]
+│  └─ ResultPanel         [ResultManager]
+├─ Stage
+│  ├─ Target              [TargetMover] [SpriteRenderer]  動く的
+│  └─ AimLine             [SpriteRenderer]  判定ライン
+├─ Cursor                 [CursorController]  1ボタン/方向入力
+└─ Audio                  [SoundManager]","[[""Target"", ""TargetMover"", ""amplitude=4, speed=1.6"", ""往復運動""], [""GameManager"", ""RhythmJudge"", ""perfect=0.08, good=0.18"", ""判定窓（秒）""], [""Cursor"", ""CursorController"", ""key=Space / 方向キー"", ""入力""], [""GameManager"", ""ComboManager"", ""resetOnMiss=true"", ""連続成功""], [""Canvas"", ""UIManager"", ""JudgeText, ComboText"", ""表示""]]",TargetMover(位置) → 入力 → RhythmJudge(ズレ) → Score/Combo → Judge表示 → 次の的,"[[""targetSpeed"", 1.6, ""的の速さ"", ""読みやすさ""], [""perfectWindow"", 0.08, ""PERFECTの窓(秒)"", ""手応え""], [""goodWindow"", 0.18, ""GOODの窓(秒)"", ""救済""], [""interval"", 1.6, ""次の的までの間隔"", ""テンポ""], [""targetCount"", 10, ""成功に必要な数"", ""達成感""], [""speedUpPerSec"", 0.02, ""加速率"", ""後半の難しさ""]]","freeze,bloom,popup,chase,comboscale,hitSpark"
+E07,リズム（3レーン）,流れるノーツを判定ラインで叩く,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [ComboManager] [Timer]
+├─ Canvas
+│  ├─ LaneRoot            [HorizontalLayoutGroup]
+│  │  ├─ Lane_0           [Image]  Pen
+│  │  ├─ Lane_1           [Image]  Apple
+│  │  └─ Lane_2           [Image]  Pineapple
+│  ├─ JudgeLine           [Image]  画面下部
+│  ├─ HUD
+│  │  ├─ JudgeText        [TextMeshProUGUI]
+│  │  ├─ ComboText        [TextMeshProUGUI]
+│  │  └─ ScoreText        [TextMeshProUGUI]
+│  └─ ResultPanel         [ResultManager]
+├─ NoteSpawner            [SpawnManager] [RhythmJudge]
+└─ Audio                  [SoundManager] [AudioSource]","[[""Note"", ""NoteMover"", ""speed=600px/s"", ""落下""], [""Note"", ""Image"", ""lane=0/1/2"", ""レーン""], [""JudgeLine"", ""RectTransform"", ""y=120"", ""判定位置""], [""GameManager"", ""RhythmJudge"", ""perfect=45px, good=90px"", ""判定""], [""Spawner"", ""SpawnManager"", ""bpm=120, 8分"", ""ノーツ生成""]]",Beat(時間) → NoteSpawner → NoteMover → キー入力 → RhythmJudge → Score/Combo → 判定表示,"[[""noteSpeed"", 600, ""ノーツ速度(px/秒)"", ""読みやすさ""], [""bpm"", 120, ""テンポ"", ""曲の速さ""], [""perfectPx"", 45, ""PERFECTの距離"", ""シビアさ""], [""goodPx"", 90, ""GOODの距離"", ""救済""], [""laneCount"", 3, ""レーン数"", ""同時押しの複雑さ""], [""maxLife"", 5, ""MISS許容"", ""失敗の重さ""]]","freeze,hitSpark,bloom,moveTrail,comboscale"
+E08,仕分け,落ちてくる物を正しい場所へ振り分ける,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer] [ComboManager]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ ScoreText / TimerText / LifeIcons / ComboText
+│  │  └─ GuideText        [TextMeshProUGUI]  ""Pen は左へ""
+│  └─ ResultPanel         [ResultManager]
+├─ Player                 [PlayerMove] [BoxCollider2D]  Tag=Player
+├─ Slots
+│  ├─ Slot_Pen            [DropSlot] Tag=Slot_Pen
+│  ├─ Slot_Apple          [DropSlot] Tag=Slot_Apple
+│  └─ Slot_Pine           [DropSlot] Tag=Slot_Pine
+├─ Spawner                [SpawnManager] [RandomSpawner] [SpeedUp]
+└─ Audio                  [SoundManager]","[[""Player"", ""PlayerMove"", ""speed=9, clampX=±7.2"", ""移動""], [""Player"", ""BoxCollider2D"", ""size=(1.4,1.4), IsTrigger=ON"", ""受け""], [""Slot"", ""BoxCollider2D"", ""size=(2.4,6), IsTrigger=ON"", ""仕分け先""], [""Slot"", ""DropSlot"", ""tag=Slot_Pen など"", ""判定""], [""Item"", ""ItemData"", ""type=Pen/Apple/Pine"", ""種類""], [""Spawner"", ""SpeedUp"", ""+0.015/秒"", ""難易度""]]",Spawn(種類) → PlayerMove → 接触 → DropSlot(Tag比較) → Score/Life/Combo → HUD → Result,"[[""moveSpeed"", 9, ""移動速度"", ""取り回し""], [""fallSpeed"", 2.4, ""落下速度"", ""判断の猶予""], [""spawnInterval"", 0.85, ""出現間隔"", ""密度""], [""ppapBonusEvery"", 3, ""PPAP完成に必要な連続数"", ""ボーナスの頻度""], [""targetCount"", 24, ""成功に必要な数"", ""達成感""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","dmg,recoil,hitSpark,popup,landSquash,bloom,comboscale"
+E09,2択判断,出題を見て、2つのボタンで即答する,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer] [MatchJudge]
+├─ Canvas
+│  ├─ QuestionRoot
+│  │  ├─ ItemA            [Image]
+│  │  └─ ItemB            [Image]
+│  ├─ BtnYes              [Button] ""成立""
+│  ├─ BtnNo               [Button] ""不成立""
+│  ├─ HUD
+│  │  ├─ JudgeText / ScoreText / TimerText / ComboText
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""BtnYes"", ""Button"", ""onClick=Answer(true)"", ""回答""], [""BtnNo"", ""Button"", ""onClick=Answer(false)"", ""回答""], [""GameManager"", ""MatchJudge"", ""answerLock=0.4s"", ""連打防止""], [""GameManager"", ""QuestionDeck"", ""pairs=組み合わせ表"", ""出題""], [""ItemA"", ""Image"", ""sprite=種類に応じて"", ""表示""]]",QuestionDeck(抽選) → 2アイテム表示 → 回答 → MatchJudge → Score/Life → 次の問題,"[[""questionInterval"", 1.8, ""出題間隔(秒)"", ""テンポ""], [""answerLock"", 0.4, ""連打防止(秒)"", ""誤入力の抑制""], [""targetCount"", 20, ""成功に必要な正解数"", ""達成感""], [""maxLife"", 3, ""残機"", ""失敗の許容""], [""speedUpAt"", 10, ""加速が始まる問題数"", ""後半の忙しさ""]]","bloom,popup,comboscale,freeze,countUp"
+E10,組み合わせ,2つを重ねて、成立する組み合わせを作る,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [Timer] [CombinationJudge]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ ScoreText / TimerText / ComboText
+│  │  └─ HintText         [TextMeshProUGUI]  ""2つを重ねろ""
+│  └─ ResultPanel         [ResultManager]
+├─ Field
+│  ├─ Item_0 … Item_5     [DragObject] [CircleCollider2D]
+│  ├─ SlotA               [DropSlot]
+│  ├─ SlotB               [DropSlot]
+│  └─ ResultPreview       [SpriteRenderer]  合成結果の表示
+└─ Audio                  [SoundManager]","[[""Item"", ""DragObject"", ""returnToStart=false"", ""ドラッグ""], [""Item"", ""CircleCollider2D"", ""radius=0.6, IsTrigger=ON"", ""重なり判定""], [""SlotA/B"", ""DropSlot"", ""acceptedTag=Item"", ""受け入れ""], [""GameManager"", ""CombinationJudge"", ""table=Dictionary<string,Result>"", ""組み合わせ""], [""ResultPreview"", ""SpriteRenderer"", ""初期は透明"", ""結果表示""]]","Drag → SlotA/B確定 → CombinationJudge(key=A.id+""_""+B.id) → Score → 結果表示 → リセット","[[""dragSpeed"", 1, ""追従の速さ"", ""操作感""], [""snapDistance"", 0.8, ""スナップ距離"", ""置きやすさ""], [""comboTime"", 2, ""組み合わせを保つ時間"", ""テンポ""], [""targetCount"", 8, ""成功に必要な組数"", ""達成感""], [""resultShowTime"", 0.8, ""結果を見せる時間"", ""納得感""]]","freeze,hitSpark,chase,bloom,popup"
+E11,積み上げ,タイミングよく落として、上に積む,"SampleScene
+├─ GameManager            [GameManager] [GameManager] [Timer] [BalanceJudge]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ HeightText       [TextMeshProUGUI]  段数
+│  │  ├─ ScoreText / TimerText
+│  └─ ResultPanel         [ResultManager]
+├─ Base                   [BoxCollider2D]  固定の台
+├─ Crane                  [CraneMove]  左右に往復する親
+│  └─ HeldItem            [SpriteRenderer] [Rigidbody2D isKinematic]
+├─ StackRoot              (積まれた物の親)
+└─ Audio                  [SoundManager]","[[""Crane"", ""CraneMove"", ""amplitude=5, speed=2"", ""左右往復""], [""HeldItem"", ""Rigidbody2D"", ""isKinematic=ON → OFFで落下"", ""落下""], [""Base"", ""BoxCollider2D"", ""size=(4,0.5)"", ""土台""], [""Stacked"", ""Rigidbody2D"", ""mass=1, freezeRotation=OFF"", ""積み""], [""GameManager"", ""BalanceJudge"", ""tiltLimit=20度"", ""崩れ判定""]]",CraneMove → 入力(離す) → HeldItem落下 → StackObject(接触) → Height加算 → BalanceJudge → 崩壊/継続,"[[""craneSpeed"", 2, ""往復の速さ"", ""狙いやすさ""], [""amplitude"", 5, ""往復の幅"", ""難しさ""], [""gravityScale"", 2, ""落下の重さ"", ""積もり方""], [""tiltLimit"", 20, ""崩れる角度"", ""シビアさ""], [""targetHeight"", 8, ""成功に必要な段数"", ""達成感""], [""perfectBonus"", true, ""中心ボーナス"", ""上手さの報酬""]]","landSquash,landDust,shake,jumpCharge,freeze,hitSpark"
+E12,ブロック崩し,パドルで跳ね返してブロックを壊す,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Canvas
+│  ├─ HUD
+│  │  ├─ ScoreText / TimerText / LifeIcons / BreakText
+│  └─ ResultPanel         [ResultManager]
+├─ Paddle                 [PlayerMove] [BoxCollider2D]  Tag=Paddle
+├─ Ball                   [BallMove] [CircleCollider2D] [Rigidbody2D]
+├─ Blocks
+│  ├─ Block_0 …           [Block] [BoxCollider2D]  Tag=Block
+│  └─ Block_17
+├─ Walls                  [BoxCollider2D] ×3（左右・上）
+└─ Audio                  [SoundManager]","[[""Paddle"", ""PlayerMove"", ""speed=10, clampX=±7.5"", ""パドル""], [""Ball"", ""Rigidbody2D"", ""gravityScale=0, mass=1"", ""反射""], [""Ball"", ""CircleCollider2D"", ""radius=0.2, bounciness=1"", ""反射""], [""Block"", ""BoxCollider2D"", ""IsTrigger=OFF"", ""破壊""], [""Block"", ""Block"", ""hp=1, type=Apple/Pine"", ""種類""], [""GameManager"", ""ScoreManager"", ""break=+1"", ""得点""]]",Input → Paddle → 反射 → Ball → OnCollisionEnter2D(Block) → Destroy → 残数 → クリア/失敗,"[[""paddleSpeed"", 10, ""パドル速度"", ""取り回し""], [""ballSpeed"", 7, ""ボール速度"", ""難易度""], [""ballSpeedUp"", 0.02, ""反射ごとの加速"", ""後半の忙しさ""], [""blockRows"", 3, ""ブロックの行数"", ""量""], [""blockCols"", 6, ""ブロックの列数"", ""量""], [""maxLife"", 3, ""ボールを落とせる回数"", ""失敗の許容""]]","hitSpark,freeze,shake,moveTrail,bloom,popup"
+E13,クイズ（2択）,問題を見て、2つのボタンで答える,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer] [MatchJudge]
+├─ Canvas
+│  ├─ QuestionPanel       [Image] 白い角丸パネル
+│  │  ├─ ItemA           [Image]
+│  │  ├─ ItemB           [Image]
+│  │  └─ QuestionText    [TextMeshProUGUI]  ""これはPPAP?""
+│  ├─ BtnYes              [Button] 成立
+│  ├─ BtnNo               [Button] 不成立
+│  ├─ HUD
+│  │  ├─ JudgeText / ScoreText / TimerText / ComboText
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""BtnYes"", ""Button"", ""onClick=Answer(true)"", ""回答""], [""BtnNo"", ""Button"", ""onClick=Answer(false)"", ""回答""], [""GameManager"", ""MatchJudge"", ""lock=0.5s"", ""連打防止""], [""GameManager"", ""QuestionDeck"", ""pairs=20問"", ""出題""], [""QuestionPanel"", ""CanvasGroup"", ""alpha=0→1で0.15秒"", ""出題演出""]]",QuestionDeck(抽選) → パネル表示 → 回答 → MatchJudge → Score/Life → 解説 → 次の問題,"[[""questionInterval"", 2.2, ""出題間隔(秒)"", ""テンポ""], [""answerLock"", 0.5, ""入力ロック(秒)"", ""誤入力の抑制""], [""targetCount"", 12, ""成功に必要な正解数"", ""達成感""], [""maxLife"", 3, ""残機"", ""失敗の許容""], [""explainTime"", 0.8, ""解説を出す時間"", ""納得感""]]","flash,popup,comboscale,hitstop"
+E14,横スクロール（マリオ型）,走って跳んで、ゴールを目指す,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Main Camera            [CameraFollow]  プレイヤーを追う
+├─ Player                 [PlayerMove] [JumpAction] [Rigidbody2D] [CapsuleCollider2D]  Tag=Player
+│  └─ GroundCheck         [GroundCheck]  足元のRaycast起点
+├─ Level
+│  ├─ Ground_0 …          [BoxCollider2D]  足場
+│  ├─ Coin_0 …            [CircleCollider2D IsTrigger]
+│  ├─ Enemy_0 …           [EnemyWalker]
+│  └─ Goal                [BoxCollider2D IsTrigger]  Tag=Goal
+├─ Canvas
+│  ├─ HUD (Score / Timer / Life / Coin)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""PlayerMove"", ""speed=8"", ""左右移動""], [""Player"", ""JumpAction"", ""jump=11, 接地時のみ"", ""ジャンプ""], [""Player"", ""Rigidbody2D"", ""gravityScale=3, FreezeRotation Z"", ""物理""], [""Player"", ""CapsuleCollider2D"", ""size=(0.7,1.2)"", ""当たり""], [""GroundCheck"", ""GroundCheck"", ""radius=0.15, layer=Ground"", ""接地""], [""Coin"", ""CircleCollider2D"", ""IsTrigger=ON"", ""取得""], [""Enemy"", ""EnemyWalker"", ""speed=2, 往復"", ""敵""], [""Camera"", ""CameraFollow"", ""smooth=0.15, offsetX=3"", ""追従""]]",Input → PlayerMove/Jump → 接地判定 → Coin取得/Enemy接触 → Score/Life → Goal判定 → Result,"[[""moveSpeed"", 8, ""走る速さ"", ""操作感""], [""jumpPower"", 11, ""ジャンプ力"", ""届く高さ""], [""gravityScale"", 3, ""重力"", ""落下の速さ""], [""cameraOffsetX"", 3, ""カメラの先読み"", ""見える範囲""], [""coinTarget"", 12, ""コインの目標数"", ""取りこぼしの悔しさ""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","squash,hitstop,shake,particles,trail"
+E15,サバイバル（ヴァンサバ型）,押し寄せる敵を自動攻撃で薙ぎ払う,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [Timer] [LifeManager]
+├─ Main Camera            [CameraFollow]
+├─ Player                 [PlayerMove] [AutoAttack] [CircleCollider2D] [Rigidbody2D]
+├─ EnemyRoot              (生成された敵の親)
+├─ BulletRoot             (弾の親)
+├─ XPRoot                 (経験値の粒)
+├─ Canvas
+│  ├─ HUD (Timer / HP / Level / Kill)
+│  ├─ LevelUpPanel        [LevelUpSelect]  3択
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""PlayerMove"", ""speed=5"", ""移動""], [""Player"", ""AutoAttack"", ""interval=0.5, range=6"", ""自動攻撃""], [""Enemy"", ""EnemyChase"", ""speed=1.8"", ""追跡""], [""Enemy"", ""CircleCollider2D"", ""IsTrigger=ON"", ""接触""], [""GameManager"", ""SpawnManager"", ""interval=0.7, 上限200"", ""生成""], [""GameManager"", ""LevelUpSelect"", ""3択"", ""強化""]]",Spawn → EnemyChase → AutoAttack(最近傍) → 撃破 → XP取得 → LevelUp(3択) → 時間終了でResult,"[[""moveSpeed"", 5, ""移動速度"", ""避けやすさ""], [""attackInterval"", 0.5, ""攻撃間隔"", ""殲滅速度""], [""attackRange"", 6, ""攻撃範囲"", ""届く距離""], [""enemySpeed"", 1.8, ""敵の速さ"", ""追いつかれるか""], [""spawnInterval"", 0.7, ""出現間隔"", ""密度""], [""maxEnemy"", 200, ""敵の上限"", ""重さ""], [""levelUpEvery"", 5, ""レベルアップに必要なXP"", ""成長のテンポ""]]","hitstop,particles,comboscale,flash,popup"
+E16,縦シューティング,上から来る敵を撃ち落とす,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Player                 [PlayerMove4] [AutoShot] [CircleCollider2D]  小さめ
+├─ EnemyRoot
+├─ BulletRoot (自弾) / EnemyBulletRoot
+├─ Canvas
+│  ├─ HUD (Score / Life / Timer)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""PlayerMove4"", ""speed=7, 画面内クランプ"", ""4方向""], [""Player"", ""AutoShot"", ""interval=0.12"", ""自動射撃""], [""Player"", ""CircleCollider2D"", ""radius=0.18"", ""当たり（見た目の6割）""], [""Enemy"", ""EnemyPattern"", ""move=直進/横揺れ"", ""移動""], [""Enemy"", ""EnemyShot"", ""interval=1.2"", ""敵弾""], [""GameManager"", ""SpawnManager"", ""interval=0.8"", ""出現""]]",Spawn → EnemyPattern → EnemyShot → 自弾 → 撃破 → Score → 被弾 → Life → Result,"[[""moveSpeed"", 7, ""自機の速さ"", ""回避力""], [""shotInterval"", 0.12, ""連射間隔"", ""殲滅速度""], [""bulletSpeed"", 14, ""弾速"", ""当てやすさ""], [""enemyInterval"", 0.8, ""敵の出現間隔"", ""密度""], [""hitRadius"", 0.18, ""当たり半径"", ""被弾の厳しさ""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","hitstop,particles,trail,flash,shake"
+E17,横シューティング,横から来る地形と敵をかわして飛ぶ,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Main Camera            [CameraFollow]  横固定・前進
+├─ Player                 [PlayerMoveV] [AutoShot] [CircleCollider2D]
+├─ TerrainRoot            (流れてくる地形)
+├─ EnemyRoot
+├─ Canvas
+│  ├─ HUD (Score / Life / Timer)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""PlayerMoveV"", ""speed=7, Yのみ"", ""上下移動""], [""Player"", ""AutoShot"", ""interval=0.14, 右方向"", ""自動射撃""], [""Terrain"", ""TerrainScroll"", ""speed=6"", ""左へ流す""], [""Terrain"", ""BoxCollider2D"", ""IsTrigger=ON"", ""接触""], [""GameManager"", ""SpawnManager"", ""interval=1.6"", ""地形生成""]]",地形生成 → 左へスクロール → 上下で回避 → 自弾で敵撃破 → 接触でLife → Result,"[[""scrollSpeed"", 6, ""スクロール速度"", ""先読みの余裕""], [""moveSpeed"", 7, ""上下の速さ"", ""回避力""], [""shotInterval"", 0.14, ""連射間隔"", ""殲滅速度""], [""terrainGap"", 1.6, ""地形の間隔"", ""密度""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","trail,hitstop,shake,particles,flash"
+E18,リズム（4レーン）,流れる矢印を4つのキーで叩く,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [ComboManager] [Timer]
+├─ Canvas
+│  ├─ LaneRoot            [HorizontalLayoutGroup]
+│  │  ├─ Lane_0 … Lane_3  [Image]
+│  ├─ JudgeLine           [Image]
+│  ├─ KeyHints            [TextMeshProUGUI]  D F J K
+│  ├─ HUD (Judge / Combo / Score)
+│  └─ ResultPanel         [ResultManager]
+├─ NoteSpawner            [SpawnManager] [RhythmJudge]
+└─ Audio                  [SoundManager]","[[""Note"", ""NoteMover"", ""speed=650px/s"", ""落下""], [""Note"", ""Image"", ""lane=0..3"", ""レーン""], [""GameManager"", ""RhythmJudge"", ""perfect=40px, good=85px"", ""判定""], [""Spawner"", ""SpawnManager"", ""bpm=120"", ""生成""], [""Canvas"", ""KeyHints"", ""D/F/J/Kを表示"", ""操作補助""]]",Beat → NoteSpawner → NoteMover → キー入力 → RhythmJudge → Score/Combo → Judge表示,"[[""noteSpeed"", 650, ""ノーツ速度"", ""読みやすさ""], [""bpm"", 120, ""テンポ"", ""曲の速さ""], [""perfectPx"", 40, ""PERFECTの距離"", ""シビアさ""], [""goodPx"", 85, ""GOODの距離"", ""救済""], [""maxLife"", 8, ""MISS許容"", ""失敗の重さ""]]","hitstop,particles,comboscale,flash"
+E19,迷路探索（見下ろし）,見下ろしの迷路を歩いてアイテムを集める,"SampleScene
+├─ GameManager            [GameManager] [Timer] [ScoreManager]
+├─ Main Camera            [CameraFollow]
+├─ Maze                   [MazeBuilder]  2次元配列から生成
+│  ├─ Wall_0 …            [BoxCollider2D]  Tag=Wall
+│  ├─ Item_0 …            [CircleCollider2D IsTrigger]
+│  └─ Exit                [BoxCollider2D IsTrigger]  Tag=Exit
+├─ Player                 [GridMove] [CircleCollider2D]  Tag=Player
+├─ Canvas
+│  ├─ HUD (Timer / ItemCount)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""GridMove"", ""speed=4"", ""移動""], [""Maze"", ""MazeBuilder"", ""map=2次元配列"", ""生成""], [""Wall"", ""BoxCollider2D"", ""size=(1,1)"", ""壁""], [""Item"", ""CircleCollider2D"", ""IsTrigger=ON"", ""取得""], [""Exit"", ""BoxCollider2D"", ""初期は閉（色を暗く）"", ""出口""]]",MazeBuilder(配列) → GridMove → Item取得 → 取得数 → 3つでExit開放 → Result,"[[""moveSpeed"", 4, ""移動速度"", ""探索のテンポ""], [""mazeSize"", 15, ""迷路の大きさ（マス）"", ""広さ""], [""itemCount"", 3, ""必要なアイテム数"", ""達成感""], [""gameTime"", 90, ""制限時間"", ""緊張感""], [""cameraZoom"", 6, ""カメラの距離"", ""見える範囲""]]","popup,particles,flash,zoom"
+E20,3Dラン,3レーンを走って障害物を避ける,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Main Camera            [CameraFollow]  後方固定
+├─ Player                 [LaneMove] [JumpAction] [Rigidbody] [CapsuleCollider]  Tag=Player
+├─ Road                   [RoadScroller]  3レーン
+├─ ObstacleRoot
+├─ CoinRoot
+├─ Directional Light
+├─ Canvas
+│  ├─ HUD (Score / Life / Timer)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""LaneMove"", ""laneX=-3/0/3, lerp=0.15"", ""レーン移動""], [""Player"", ""JumpAction"", ""jump=8"", ""ジャンプ""], [""Player"", ""Rigidbody"", ""useGravity=ON, FreezeRotation"", ""物理""], [""Road"", ""RoadScroller"", ""speed=12, tile=20m"", ""無限スクロール""], [""Obstacle"", ""BoxCollider"", ""IsTrigger=ON"", ""接触""], [""Camera"", ""CameraFollow"", ""offset=(0,3,-7)"", ""追従""]]",Input → LaneMove → Jump → RoadScroller → Obstacle接触/Coin取得 → Score/Life → Result,"[[""laneWidth"", 3, ""レーン幅(m)"", ""読みやすさ""], [""lerpSpeed"", 0.15, ""レーン移動の速さ"", ""操作感""], [""runSpeed"", 12, ""前進速度"", ""難易度""], [""jumpPower"", 8, ""ジャンプ力"", ""越えやすさ""], [""obstacleInterval"", 1.1, ""障害物の間隔"", ""密度""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","trail,shake,squash,particles,slowmo"
+E21,クリック連打,出てきた物を連打して割る,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Main Camera
+├─ SpawnArea              (出現位置の範囲)
+├─ ItemRoot
+├─ Canvas
+│  ├─ HUD (Score / Timer / Life / Combo)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Item"", ""ClickTarget"", ""hits=3"", ""連打対象""], [""Item"", ""CircleCollider2D"", ""クリック判定"", ""入力""], [""GameManager"", ""SpawnManager"", ""interval=1.2"", ""出現""], [""GameManager"", ""ComboManager"", ""resetOnEscape=true"", ""コンボ""], [""Canvas"", ""UIManager"", ""スコア更新"", ""表示""]]",Spawn → ClickTarget(連打) → 破壊 → 破片 → Score/Combo → 逃げられるとLife減,"[[""hitsToBreak"", 3, ""割るのに必要な回数"", ""手応え""], [""spawnInterval"", 1.2, ""出現間隔"", ""忙しさ""], [""itemLife"", 2, ""消えるまでの秒数"", ""猶予""], [""comboWindow"", 0.8, ""コンボ継続時間"", ""気持ちよさ""], [""maxLife"", 5, ""逃がせる数"", ""失敗の許容""]]","squash,particles,popup,comboscale,flash"
+E22,1人称ダンジョン探索,1人称で歩いてアイテムを集める,"SampleScene
+├─ GameManager            [GameManager] [Timer] [ScoreManager]
+├─ Player                 [FirstPersonMove] [CharacterController]
+│  └─ Main Camera         [Camera]  目の高さ1.6m
+├─ Dungeon
+│  ├─ Floor / Wall_0 …    [BoxCollider]
+│  ├─ Item_0 …            [SphereCollider IsTrigger]
+│  └─ ExitDoor            [BoxCollider]  取得3つで開く
+├─ Canvas
+│  ├─ HUD (Timer / ItemCount / Guide)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""FirstPersonMove"", ""speed=3.5, 旋回=90度/秒"", ""移動""], [""Player"", ""CharacterController"", ""height=1.7, radius=0.3"", ""当たり""], [""Camera"", ""Camera"", ""localPos=(0,1.6,0)"", ""視点""], [""Item"", ""SphereCollider"", ""IsTrigger=ON, radius=0.4"", ""取得""], [""ExitDoor"", ""BoxCollider"", ""取得3つまで閉"", ""扉""], [""Dungeon"", ""Light"", ""黄色いポイントライト"", ""雰囲気""]]",FirstPersonMove(W/S＋A/D旋回) → Item取得 → Count → 3つでExitDoor開放 → Result,"[[""moveSpeed"", 3.5, ""歩く速さ"", ""探索のテンポ""], [""turnSpeed"", 90, ""旋回速度(度/秒)"", ""操作感""], [""gameTime"", 120, ""制限時間"", ""緊張感""], [""itemCount"", 3, ""必要なアイテム数"", ""達成感""], [""fogDensity"", 0.02, ""霧の濃さ"", ""見える距離""]]","flash,particles,zoom,slowmo"
+E23,3Dキャッチ,3D空間で落ちてくる物を受け止める,"SampleScene
+├─ GameManager            [GameManager] [ScoreManager] [LifeManager] [Timer]
+├─ Main Camera            [CameraFollow] 斜め上から
+├─ Directional Light      影を落とす（重要）
+├─ Player                 [LaneMove] [BoxCollider]  Tag=Player
+├─ Spawner                [SpawnManager] [RandomSpawner] [SpeedUp]
+├─ ItemRoot               (落ちてくるCubeの親)
+├─ Canvas
+│  ├─ HUD (Score / Timer / Life / Target)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""LaneMove"", ""speed=8, X軸のみ"", ""左右移動""], [""Player"", ""BoxCollider"", ""size=(1.2,2,1.2)"", ""受け判定""], [""Item"", ""Rigidbody"", ""useGravity=true, mass=1"", ""落下""], [""Item"", ""BoxCollider"", ""size=(0.8,0.8,0.8)"", ""接触""], [""Spawner"", ""SpawnManager"", ""interval=0.95"", ""生成""], [""Light"", ""Light"", ""shadows=Soft, intensity=1.1"", ""影""]]",Spawn(3D座標) → Rigidbody落下 → Player接触 → 種類判定 → Score/Life → HUD → Result,"[[""moveSpeed"", 8, ""左右の速さ"", ""合わせやすさ""], [""fallSpeed"", 3.5, ""落下の初速"", ""判断の猶予""], [""spawnInterval"", 0.95, ""出現間隔"", ""密度""], [""spawnHeight"", 9, ""出現する高さ(m)"", ""落下時間""], [""laneWidth"", 2.2, ""アイテムの散らばり"", ""取りやすさ""], [""maxLife"", 3, ""残機"", ""失敗の許容""]]","landSquash,landDust,hitSpark,bloom,dmg,popup"
+E24,3D迷路,3Dの迷路を歩いてアイテムを集める,"SampleScene
+├─ GameManager            [GameManager] [Timer] [ScoreManager]
+├─ Main Camera            [CameraFollow] 斜め上から
+├─ Maze                   [MazeBuilder3D]  2次元配列からCubeを並べる
+│  ├─ Wall_0 …            [BoxCollider]  Tag=Wall
+│  ├─ Item_0 …            [SphereCollider IsTrigger]
+│  └─ Exit                [BoxCollider]  Tag=Exit
+├─ Player                 [GridMove3D]  Tag=Player
+├─ Directional Light
+├─ Canvas
+│  ├─ HUD (Timer / ItemCount / Guide)
+│  └─ ResultPanel         [ResultManager]
+└─ Audio                  [SoundManager]","[[""Player"", ""GridMove3D"", ""speed=5, 前後左右"", ""移動""], [""Maze"", ""MazeBuilder3D"", ""cell=2m, map=配列"", ""生成""], [""Wall"", ""BoxCollider"", ""size=(2,2,2)"", ""壁""], [""Item"", ""SphereCollider"", ""IsTrigger=ON"", ""取得""], [""Camera"", ""CameraFollow"", ""offset=(0,12,-9), angle=55"", ""見下ろし""], [""Exit"", ""BoxCollider"", ""3つまで閉"", ""扉""]]",MazeBuilder3D → GridMove3D → Item取得 → 3つでExit開放 → Result,"[[""moveSpeed"", 5, ""歩く速さ"", ""探索のテンポ""], [""mazeSize"", 11, ""迷路の大きさ（奇数）"", ""広さ""], [""cellSize"", 2, ""1マスの大きさ(m)"", ""見やすさ""], [""itemCount"", 3, ""必要なアイテム数"", ""達成感""], [""gameTime"", 90, ""制限時間"", ""緊張感""], [""cameraHeight"", 12, ""カメラの高さ"", ""見渡しやすさ""]]","popup,hitSpark,bloom,chase,countUp"

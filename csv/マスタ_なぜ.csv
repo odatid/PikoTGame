@@ -1,0 +1,10 @@
+id,short,text,tags
+why_wordless,言葉が通じなくても伝わる,ピコ太郎は、言葉が通じなくても身振りと音だけで伝わる。この「誰でも参加できる」構造をゲームにしたい。,"ch_wordless,in_visual,in_gesture,in_sound,sp_global"
+why_combine,異なるものを組み合わせる,ピコ太郎は、PenとAppleのように無関係なものを組み合わせて成立させる。この「組み合わせる」構造を遊びにしたい。,"ip_combine,ip_unexpected,co_anything"
+why_mimic,真似したくなる,ピコ太郎は、見た人がすぐ真似できる動きと短さを持っている。この「真似したくなる」参加性をゲームにしたい。,"sp_mimic,ip_mimic,ch_body,ip_repeat"
+why_short,短くて強い,ピコ太郎は、1分に満たない短さで世界に届いた。この「短いのに残る」強さを、1プレイの体験として作りたい。,"ip_short,sp_short,sp_oneneta,ip_repeat"
+why_social,難しいことを楽しく伝える,ピコ太郎は、手洗いやSDGsのような難しいテーマを、歌と動きで子どもにも伝えてきた。この「伝える力」をゲームにしたい。,"so_handwash,so_sdgs,so_edu,so_explain,ch_kids"
+why_connect,人と人、文化をつなぐ,ピコ太郎は、国の違いや世代の違いを越えて、同じ動作で笑える。この「つなぐ」力をゲームのルールにしたい。,"in_culture,co_involve,co_char,in_repeat"
+why_serious,真面目にふざける,ピコ太郎は、大真面目にバカバカしいことをする。この「真面目にふざける」姿勢を、ゲームの手触りにしたい。,"ch_deadpan,ch_silly,ch_surreal,ch_confident"
+why_update,時代に合わせて更新される,ピコ太郎は、PPAPの後も手洗い版や海外版として形を変えて続いている。この「更新され続ける」性質をゲームにしたい。,"ip_repeat,co_anything,sp_short,vis_loud"
+why_loud,画面いっぱいに主張する,ピコ太郎は、黄色とヒョウ柄で画面を埋め尽くす。この「遠目でも分かる」強さを、ゲームの画面にしたい。,"vis_loud,vis_leopard,vis_yellow,vis_silhouette"

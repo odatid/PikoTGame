@@ -1,0 +1,11 @@
+id,label,file,length,when,tone,volume
+se_decide,決定,se_decide.wav,0.08秒,ボタンを押した瞬間,短い矩形波（ピッ）,-6dB
+se_tap,タップ,se_tap.wav,0.04秒,入力のたび,ごく短いクリック（カッ）,-10dB
+se_get,アイテム取得,se_get.wav,0.18秒,正しく取れた瞬間,上がる2音（C5→E5）,-4dB
+se_ok,正解,se_ok.wav,0.25秒,判定が成功した瞬間,明るい3音（C-E-G）,-4dB
+se_ng,不正解,se_ng.wav,0.22秒,判定が失敗した瞬間,下がる2音（G3→D3）,-6dB
+se_hit,衝突,se_hit.wav,0.15秒,障害物に当たった瞬間,短いノイズ＋低音,-3dB
+se_score,得点,se_score.wav,0.12秒,スコアが増えた瞬間,高い1音（E6）,-8dB
+se_start,ゲームスタート,se_start.wav,0.6秒,プレイ開始時,3音の上昇（ドミソ）,-4dB
+se_end,ゲーム終了,se_end.wav,0.8秒,リザルトへ移る瞬間,2音の下降＋余韻,-4dB
+se_combo,コンボ,se_combo.wav,0.14秒,3連続ごと,音程が上がる（コンボ数×半音）,-6dB

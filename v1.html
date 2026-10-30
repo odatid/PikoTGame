@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PK//PROTO — ピコ太郎版 ゲーム企画具体化ツール</title>
+<meta name="description" content="考えた動詞を、遊べる形とUnityの作り方まで落とす。ゲーム制作演習のための企画具体化ツール。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="leopard-edge" aria-hidden="true"></div>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="wordmark" href="#/" aria-label="最初に戻る">
+      <span class="wm-main">PK<span class="slash">//</span>PROTO</span>
+      <span class="wm-sub">企画を、作れる形に。</span>
+    </a>
+    <div class="bar-right">
+      <button class="code-chip" id="sessionChip" type="button" title="この企画のセッションコード。別の端末で続きを開けます。">
+        <span class="cc-label">SESSION</span><span class="cc-val" id="sessionCode">—</span>
+      </button>
+      <span class="db-chip local" id="dbChip" title="データの読み込み元">LOCAL</span>
+      <button class="icon-btn" id="btnPrint" type="button" title="印刷 / PDF保存">印刷</button>
+      <button class="icon-btn" id="btnRestart" type="button" title="最初からやり直す">最初から</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="進行状況"></nav>
+  <main id="app" class="app" tabindex="-1"></main>
+</div>
+
+<footer class="tape" id="tape" aria-live="polite">
+  <div class="tape-in">
+    <span class="tape-label">SPEC TAPE</span>
+    <div class="tape-lines" id="tapeLines"></div>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/engines.js"></script>
+<script src="assets/js/db.js"></script>
+<script src="assets/js/generate.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

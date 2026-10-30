@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>PK//PROTO v2 通し検証</title>
+<style>
+ body{font:12px/1.55 monospace;background:#101010;color:#0f0;padding:14px;white-space:pre-wrap}
+ h1{color:#ffd400;font-size:13px}.bad{color:#ff5555}.ok{color:#00ff66}.warn{color:#ffaa00}
+ #mount{display:none}
+</style>
+</head>
+<body>
+<h1>PK//PROTO v2 — 通し検証（DOM操作＋全組み合わせ）</h1>
+<pre id="out">実行中...</pre>
+
+<!-- index.html と同じ骨格（クリックで通すため） -->
+<div class="shell" id="mount">
+  <nav class="rail" id="rail"></nav>
+  <main id="app" class="app" tabindex="-1"></main>
+</div>
+<div id="toast"></div>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+/* 先にDOM操作の検証をするため、app.js は後で読み込む（自動bootの対象になる） */
+window.__CHECK__ = true;
+</script>
+<script src="../assets/v2/app.js"></script>
+<script>
+window.addEventListener('load', function(){
+'use strict';
+const L=[]; const log=(s)=>{ L.push(s); console.log(s); };
+const out=document.getElementById('out');
+const flush=()=>{ out.textContent=L.join('\n'); };
+
+/* 起動後に走る。前回の保存内容を消して、必ず intro から始める */
+try{ localStorage.removeItem('pkproto.v2'); }catch(e){}
+Object.assign(window.PK2app.state, {
+  step:'intro', games:[], genre:null, hook:null, twist:null,
+  exp:'some', goal:'both', tab:'plan', check:{a:false,b:false,c:false}
+});
+window.PK2app.render();
+const click=(sel)=>{
+  const el=document.querySelector(sel);
+  if(!el) return false;
+  el.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  return true;
+};
+const currentStep=()=> (window.PK2app && window.PK2app.state && window.PK2app.state.step) || '?';
+
+let errors=0;
+window.addEventListener('error', e=>{ errors++; log('JS_ERROR ' + e.message); });
+
+/* ---------- A. 画面遷移（クリックで通す） ---------- */
+log('--- A. 画面遷移 ---');
+log('start step=' + currentStep());
+log('rail buttons=' + document.querySelectorAll('#rail button').length);
+log('intro CTA present=' + !!document.querySelector('[data-go="games"]'));
+
+click('[data-go="games"]'); log('after click games → step=' + currentStep() + ' gameChoices=' + document.querySelectorAll('[data-game]').length);
+
+/* 好きなゲームを2本選ぶ */
+const gameBtns = document.querySelectorAll('[data-game]');
+log('games listed=' + gameBtns.length);
+gameBtns[0].dispatchEvent(new MouseEvent('click',{bubbles:true}));
+const g2 = document.querySelectorAll('[data-game]');
+g2[1].dispatchEvent(new MouseEvent('click',{bubbles:true}));
+log('selected games=' + JSON.stringify(window.PK2app.state.games));
+
+click('[data-go="genre"]'); log('after click genre → step=' + currentStep() + ' genreChoices=' + document.querySelectorAll('[data-genre]').length);
+log('recommend badges=' + document.querySelectorAll('.rec').length);
+
+/* 強烈におすすめの「これで進む」が、選んで次の設問へ進むか */
+const pickBtn = document.querySelector('[data-pick]');
+log('hero pick button=' + !!pickBtn);
+log('hero reason items=' + document.querySelectorAll('.pick-why li').length);
+if(pickBtn){
+  const pickId = pickBtn.dataset.pick;
+  pickBtn.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  log('after pick → step=' + currentStep() + ' genre=' + window.PK2app.state.genre
+      + ' matches=' + (window.PK2app.state.genre===pickId) + ' hook=' + window.PK2app.state.hook);
+  if(currentStep()!=='hook'){ errors++; log('PICK_DID_NOT_ADVANCE'); }
+  if(window.PK2app.state.genre!==pickId){ errors++; log('PICK_ID_MISMATCH'); }
+  click('[data-go="genre"]');   /* 以降の通し検証のためジャンル画面へ戻す */
+}
+
+click('[data-genre]');
+log('after genre pick → genre=' + window.PK2app.state.genre + ' hook=' + window.PK2app.state.hook + ' twist=' + window.PK2app.state.twist);
+
+click('[data-go="hook"]'); log('after click hook → step=' + currentStep() + ' hookChoices=' + document.querySelectorAll('[data-hook]').length);
+click('[data-hook]');
+log('hook picked=' + window.PK2app.state.hook);
+
+click('[data-go="exp"]'); log('after click exp → step=' + currentStep() + ' expChoices=' + document.querySelectorAll('[data-exp]').length + ' goalChoices=' + document.querySelectorAll('[data-goal]').length);
+click('[data-exp]'); click('[data-goal]');
+log('exp=' + window.PK2app.state.exp + ' goal=' + window.PK2app.state.goal);
+
+/* 経験の設問は「答えずに進む」で素通りできるか */
+const skipBtn = document.querySelector('[data-reset="exp"]');
+log('exp skip button=' + !!skipBtn);
+if(skipBtn){
+  skipBtn.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  log('after exp skip → step=' + currentStep() + ' exp=' + window.PK2app.state.exp + ' goal=' + window.PK2app.state.goal);
+  if(currentStep()!=='result'){ errors++; log('EXP_SKIP_DID_NOT_ADVANCE'); }
+  click('[data-go="exp"]');
+}
+
+click('[data-go="result"]'); log('after click result → step=' + currentStep());
+const titleEl = document.querySelector('.title-big');
+log('result title=' + (titleEl ? titleEl.textContent.trim() : 'MISSING'));
+log('result has pitch=' + !!document.querySelector('.pitch'));
+log('result has showcase=' + !!document.querySelector('.showcase'));
+log('twist chips=' + document.querySelectorAll('[data-twist]').length);
+log('alt genre chips=' + document.querySelectorAll('[data-genre]').length);
+const bodyTxt = document.getElementById('app').textContent;
+log('result contains undefined=' + (bodyTxt.indexOf('undefined')>=0));
+log('result contains NaN=' + /\bNaN\b/.test(bodyTxt));
+
+/* 味付け変更が効くか */
+const before = document.querySelector('.showcase p').textContent;
+click('[data-twist]');
+const after = document.querySelector('.showcase p') ? 'ok' : 'missing';
+log('after twist swap → twist=' + window.PK2app.state.twist + ' showcase=' + after);
+
+/* 出力へ */
+click('[data-go="out"]'); log('after click out → step=' + currentStep());
+log('out tabs=' + document.querySelectorAll('[data-tab]').length);
+log('textarea chars=' + (document.getElementById('outText')||{value:''}).value.length);
+log('textarea has undefined=' + (document.getElementById('outText').value.indexOf('undefined')>=0));
+
+/* 6タブすべて切り替えて中身を見る */
+const tabIds = [...document.querySelectorAll('[data-tab]')].map(b=>b.dataset.tab);
+log('tab ids=' + tabIds.join(','));
+tabIds.forEach(id=>{
+  document.querySelector('[data-tab="'+id+'"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  const ta = document.getElementById('outText');
+  const v = ta ? ta.value : '';
+  log('  TAB ' + id + ' chars=' + v.length + ' undefined=' + (v.indexOf('undefined')>=0) + ' NaN=' + (/\bNaN\b/.test(v)) + ' empty=' + (v.trim()===''));
+});
+
+/* copy handler が例外を出さないか */
+try{
+  document.querySelector('[data-copy]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  document.querySelector('[data-copyall]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  log('copy handlers fired=OK');
+}catch(e){ errors++; log('COPY_ERROR ' + e.message); }
+
+/* チェックボックス（結果画面に戻ってから） */
+click('[data-go="result"]');
+log('back to result step=' + currentStep());
+const chk = document.querySelector('[data-check]');
+if(chk){ chk.dispatchEvent(new MouseEvent('click',{bubbles:true})); log('check toggle fired=OK'); }
+else { errors++; log('CHECK_ELEMENT_MISSING'); }
+
+/* ---------- B. 全組み合わせ（ジャンル×乗せ方）で出力を検査 ---------- */
+log('--- B. 全組み合わせ ---');
+let combos=0, badCombo=0, emptyField=0;
+const REQUIRED = ['title','pitch','whyPico','whyShape','show','loop','success','fail','input','view','impl','unity'];
+PK2.GENRES.forEach(g=>{
+  PK2.HOOKS.forEach(h=>{
+    combos++;
+    const st = {games:['g_mario'], genre:g.id, hook:h.id, exp:'some', goal:'both'};
+    let P;
+    try{ P = PK2.plan.buildPlan(st); }
+    catch(e){ badCombo++; log('  BUILD_THROW ' + g.id+'/'+h.id + ' ' + e.message); return; }
+    REQUIRED.forEach(k=>{
+      if(!P[k] || String(P[k]).trim()===''){ emptyField++; if(emptyField<=8) log('  EMPTY ' + g.id+'/'+h.id + '.' + k); }
+    });
+    if(!P.show){ badCombo++; }
+    /* 6出力を生成して検査 */
+    try{
+      const outs = {
+        plan: PK2.prompts.promptPlan(P), image: PK2.prompts.promptImage(P),
+        assets: PK2.prompts.promptAssets(P), web: PK2.prompts.promptWeb(P),
+        unity: PK2.prompts.promptUnity(P), proposal: PK2.prompts.promptProposal(P, st)
+      };
+      Object.entries(outs).forEach(([k,v])=>{
+        if(typeof v!=='string' || v.trim()===''){ badCombo++; log('  EMPTY_OUT ' + g.id+'/'+h.id+'.'+k); }
+        if(v.indexOf('undefined')>=0){ badCombo++; if(badCombo<=10) log('  UNDEF ' + g.id+'/'+h.id+'.'+k); }
+        if(/\bNaN\b/.test(v)){ badCombo++; log('  NAN ' + g.id+'/'+h.id+'.'+k); }
+      });
+    }catch(e){ badCombo++; log('  OUT_THROW ' + g.id+'/'+h.id + ' ' + e.message); }
+  });
+});
+log('combos=' + combos + ' bad=' + badCombo + ' emptyFields=' + emptyField);
+
+/* ---------- C. データ整合性 ---------- */
+log('--- C. データ整合性 ---');
+log('GAMES=' + PK2.GAMES.length + ' GENRES=' + PK2.GENRES.length + ' HOOKS=' + PK2.HOOKS.length + ' TWISTS=' + PK2.TWISTS.length);
+const gIds = new Set(PK2.GENRES.map(g=>g.id));
+const badGameRef = [];
+PK2.GAMES.forEach(g=>g.genres.forEach(x=>{ if(!gIds.has(x)) badGameRef.push(g.id+'→'+x); }));
+log('GAMES_GENRE_REF_BAD=' + badGameRef.length + (badGameRef.length?' → '+badGameRef.join(','):''));
+const badTwist = PK2.GENRES.filter(g=>!PK2.TWISTS.some(t=>t.id===g.twist));
+log('GENRE_TWIST_BAD=' + badTwist.length + (badTwist.length?' → '+badTwist.map(g=>g.id).join(','):''));
+const badHook = [];
+PK2.GENRES.forEach(g=>g.hooks.forEach(h=>{ if(!PK2.HOOKS.some(x=>x.id===h)) badHook.push(g.id+'→'+h); }));
+log('GENRE_HOOK_REF_BAD=' + badHook.length + (badHook.length?' → '+badHook.join(','):''));
+const noAssets = PK2.GENRES.filter(g=>!g.assets || !g.assets.length);
+log('GENRE_NO_ASSETS=' + noAssets.length + (noAssets.length?' → '+noAssets.map(g=>g.id).join(','):''));
+/* ジャンル名だけでは区別できないため「例」を必ず持たせる */
+const noEg = PK2.GENRES.filter(g=>!g.eg || String(g.eg).trim().length<8);
+log('GENRE_NO_EG=' + noEg.length + (noEg.length?' → '+noEg.map(g=>g.id).join(','):''));
+const badEg = PK2.GENRES.filter(g=>/undefined|NaN/.test(String(g.eg||'')));
+log('GENRE_EG_UNDEF=' + badEg.length);
+/* 画面上で例文が実際に出ているか（ジャンル画面） */
+click('[data-go="genre"]');
+log('genre cards with eg=' + document.querySelectorAll('.choice.col .eg').length + ' / ' + PK2.GENRES.length);
+log('genre annotations(dl=' + document.querySelectorAll('.kv').length + ')');
+const titlesMissing = PK2.GENRES.filter(g=>!PK2.plan.TITLES[g.id]);
+log('GENRE_NO_TITLE=' + titlesMissing.length + (titlesMissing.length?' → '+titlesMissing.map(g=>g.id).join(','):''));
+const showsMissing = PK2.GENRES.filter(g=>!PK2.plan.SHOW[g.id]);
+log('GENRE_NO_SHOW=' + showsMissing.length + (showsMissing.length?' → '+showsMissing.map(g=>g.id).join(','):''));
+const noGameGenre = PK2.GAMES.filter(g=>!g.genres || !g.genres.length);
+log('GAME_NO_GENRE=' + noGameGenre.length + (noGameGenre.length?' → '+noGameGenre.map(g=>g.id).join(','):''));
+/* ジャンルがどのゲームからも推薦されない（選べるので問題なしの参考値） */
+const reachable = new Set(); PK2.GAMES.forEach(g=>g.genres.forEach(x=>reachable.add(x)));
+const orphan = PK2.GENRES.filter(g=>!reachable.has(g.id));
+log('GENRE_NOT_LINKED_TO_ANY_GAME=' + orphan.length + (orphan.length?' → '+orphan.map(g=>g.id+'('+g.label+')').join(','):''));
+
+/* ---------- D. 決定性（同じ入力なら同じ出力） ---------- */
+log('--- D. 決定性 ---');
+const stA = {games:['g_suika'], genre:'g_otoshimono', hook:'h_item', exp:'some', goal:'both'};
+const a1 = PK2.plan.buildPlan(stA), a2 = PK2.plan.buildPlan(stA);
+log('same_output=' + (JSON.stringify(a1)===JSON.stringify(a2)));
+const r1 = PK2.plan.recommendGenres(['g_mario'],'some').map(x=>x.genre.id).join(',');
+const r2 = PK2.plan.recommendGenres(['g_mario'],'some').map(x=>x.genre.id).join(',');
+log('same_recommend=' + (r1===r2));
+
+/* ---------- E. 経験による出し分け ---------- */
+log('--- E. 経験による出し分け ---');
+['beginner','some','used'].forEach(exp=>{
+  const st = {games:['g_mario'], genre:'g_horde', hook:'h_crowd', exp, goal:'both'};
+  const P = PK2.plan.buildPlan(st);
+  log('  exp=' + exp + ' overCap=' + P.overCap + ' caution=' + (PK2.plan.caution(P)?'あり':'なし'));
+});
+
+/* ---------- F. 強烈におすすめ（topPick） ---------- */
+log('--- F. 強烈におすすめ ---');
+const popMissing = PK2.GENRES.filter(g=>!PK2.POP[g.id]);
+log('POP_MISSING=' + popMissing.length + (popMissing.length?' → '+popMissing.map(g=>g.id).join(','):''));
+const popBad = PK2.GENRES.filter(g=>{ const p=PK2.POP[g.id]; return p && (!p.why || p.why.length<8 || [1,2,3].indexOf(p.pop)<0); });
+log('POP_BAD=' + popBad.length + (popBad.length?' → '+popBad.map(g=>g.id).join(','):''));
+
+/* ゲーム未選択でも必ず1つ出る／理由が2〜3件ある */
+const pickNone = PK2.plan.topPick([], 'some');
+log('pick(none)=' + (pickNone?pickNone.genre.id:'NULL') + ' reasons=' + (pickNone?pickNone.reasons.length:0));
+const pickBad = [];
+[['none',[]],['mario',['g_mario']],['puyo',['g_puyo']],['suika',['g_suika']],
+ ['taiko',['g_taiko']],['fort',['g_fort']],['golf',['g_golf']],['multi',['g_suika','g_vamp','g_taiko']]
+].forEach(([nm,gs])=>{
+  ['beginner','some','used'].forEach(exp=>{
+    const p = PK2.plan.topPick(gs, exp);
+    if(!p) { pickBad.push(nm+'/'+exp+':NULL'); return; }
+    if(!p.reasons.length) pickBad.push(nm+'/'+exp+':NOREASON');
+    if(p.reasons.some(r=>/undefined|NaN/.test(r))) pickBad.push(nm+'/'+exp+':UNDEF');
+    log('  ' + nm + '/' + exp + ' → ' + p.genre.label + '（理由' + p.reasons.length + '）');
+  });
+});
+log('PICK_BAD=' + pickBad.length + (pickBad.length?' → '+pickBad.join(','):''));
+
+/* マリオ型とリズムが、それぞれの入口から1位になるか（今回の重点） */
+log('TOP_FOR_MARIO=' + PK2.plan.topPick(['g_mario'],'some').genre.id);
+log('TOP_FOR_TAIKO=' + PK2.plan.topPick(['g_taiko'],'some').genre.id);
+log('TOP_FOR_PUYO=' + PK2.plan.topPick(['g_puyo'],'some').genre.id);
+log('TOP_FOR_NONE=' + PK2.plan.topPick([],'some').genre.id);
+
+/* 推薦の分布（特定の型に張り付いていないか） */
+const dist = {};
+PK2.GAMES.forEach(gm=>{
+  const p = PK2.plan.topPick([gm.id],'some');
+  if(p){ dist[p.genre.id] = (dist[p.genre.id]||0)+1; }
+});
+log('PICK_DIST=' + Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+':'+v).join(','));
+
+log('--- 結果 ---');
+log(errors===0 ? 'JS_ERRORS=0 OK' : ('JS_ERRORS=' + errors + ' NG'));
+flush();
+});
+</script>
+</body></html>

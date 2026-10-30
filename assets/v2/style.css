@@ -1,0 +1,219 @@
+/* =========================================================
+   PK//PROTO v2 — スタイル
+   黄色 × 黒（ヒョウ柄）を記号として使う。読みやすさ優先。
+   ========================================================= */
+:root{
+  --ink:#141414;
+  --ink-2:#3d3d3d;
+  --muted:#6b6b6b;
+  --line:#e3ddc8;
+  --bg:#fbf7ea;
+  --card:#ffffff;
+  --yellow:#ffd400;
+  --yellow-deep:#e8bf00;
+  --red:#d93b2b;
+  --green:#2f9c4f;
+  --shadow:0 2px 0 rgba(20,20,20,.08);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:
+    radial-gradient(circle at 12px 12px, rgba(20,20,20,.055) 2px, transparent 2.5px),
+    radial-gradient(circle at 34px 30px, rgba(20,20,20,.04) 2px, transparent 2.5px);
+  background-size:56px 56px;
+}
+h1,h2,h3,h4{line-height:1.35;margin:0}
+p{margin:0}
+a{color:var(--ink)}
+button{font-family:inherit}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+
+/* ---------- header ---------- */
+.bar{position:sticky;top:0;z-index:40;background:var(--ink);color:#fff;border-bottom:4px solid var(--yellow)}
+.bar-in{max-width:1120px;margin:0 auto;display:flex;align-items:center;gap:14px;justify-content:space-between;padding:10px 16px}
+.wordmark{display:flex;align-items:baseline;gap:10px;text-decoration:none;color:#fff}
+.wm-main{font-family:var(--mono);font-weight:600;font-size:1.12rem;letter-spacing:.06em}
+.wm-main .slash{color:var(--yellow)}
+.wm-sub{font-size:.68rem;color:#bfbfbf;letter-spacing:.02em}
+@media(max-width:620px){.wm-sub{display:none}}
+.bar-right{display:flex;align-items:center;gap:8px}
+.ver{font-family:var(--mono);font-size:.66rem;background:var(--yellow);color:var(--ink);padding:2px 7px;border-radius:3px;font-weight:600}
+.icon-btn{background:transparent;color:#fff;border:1px solid #555;border-radius:6px;padding:5px 10px;font-size:.72rem;cursor:pointer}
+.icon-btn:hover{background:#2b2b2b;border-color:#888}
+
+/* ---------- shell ---------- */
+.shell{max-width:1120px;margin:0 auto;padding:22px 16px 120px}
+@media(max-width:620px){.shell{padding:14px 12px 140px}}
+
+/* ---------- steps rail ---------- */
+.rail{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.rail button{
+  border:1px solid var(--line);background:#fff;color:var(--muted);
+  border-radius:999px;padding:5px 11px;font-size:.72rem;cursor:pointer;
+  display:flex;align-items:center;gap:5px;transition:.12s;
+}
+.rail button .n{font-family:var(--mono);font-size:.64rem;opacity:.7}
+.rail button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.rail button.on .n{color:var(--yellow);opacity:1}
+.rail button.done{border-color:var(--yellow-deep);color:var(--ink);background:#fffaea}
+.rail button:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- cards ---------- */
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:26px;box-shadow:var(--shadow);
+}
+@media(max-width:620px){.card{padding:18px;border-radius:12px}}
+.card + .card{margin-top:16px}
+.eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;color:var(--muted);margin-bottom:6px}
+h2.step{font-size:1.42rem;font-weight:900;letter-spacing:-.01em}
+@media(max-width:620px){h2.step{font-size:1.18rem}}
+.lead{color:var(--ink-2);font-size:.9rem;margin-top:8px}
+.note{font-size:.78rem;color:var(--muted);margin-top:6px}
+
+/* ---------- intro ---------- */
+.hero-line{font-size:1.02rem;font-weight:700;margin-top:14px;padding:14px 16px;background:#fffaea;border-left:5px solid var(--yellow);border-radius:0 8px 8px 0}
+.hero-line b{background:linear-gradient(transparent 62%, var(--yellow) 62%)}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}
+@media(max-width:760px){.flow{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:420px){.flow{grid-template-columns:1fr}}
+.flow-item{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fffdf7}
+.flow-item .fn{font-family:var(--mono);font-size:.64rem;color:var(--yellow-deep);font-weight:600}
+.flow-item b{display:block;font-size:.86rem;margin:2px 0 3px}
+.flow-item span{font-size:.74rem;color:var(--muted);line-height:1.55}
+
+/* ---------- choices ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.choice{
+  border:1.5px solid var(--line);background:#fff;border-radius:9px;
+  padding:9px 13px;font-size:.85rem;cursor:pointer;transition:.12s;
+  display:flex;align-items:center;gap:7px;text-align:left;
+}
+.choice:hover{border-color:var(--ink);background:#fffdf7}
+.choice.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.choice.on .tick{color:var(--yellow)}
+.choice .tick{font-family:var(--mono);font-size:.7rem;opacity:.55}
+.choice.on .tick{opacity:1}
+.choice .lv{font-family:var(--mono);font-size:.62rem;padding:1px 5px;border-radius:3px;background:#f0ece0;color:var(--ink-2)}
+.choice.on .lv{background:#3a3a3a;color:var(--yellow)}
+.choice .rec{font-family:var(--mono);font-size:.6rem;background:var(--yellow);color:var(--ink);padding:1px 5px;border-radius:3px;font-weight:600}
+
+/* ジャンルカード：ラベル＋例を縦に積む（例がないと名前だけでは区別できないため） */
+.choice.col{flex-direction:column;align-items:stretch;gap:3px;padding:10px 13px}
+.choice.col .c-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.choice.col .c-head b{font-size:.87rem;font-weight:700}
+.choice.col .eg{font-size:.72rem;line-height:1.5;color:var(--muted);text-align:left}
+.choice.col.on .eg{color:#d8d8d8}
+.choice.col.on .c-head b{color:#fff}
+
+.game-groups{margin-top:16px}
+.game-group{margin-top:14px}
+.game-group h4{font-size:.78rem;color:var(--muted);font-weight:700;margin-bottom:6px;letter-spacing:.02em}
+
+/* ---------- 強烈におすすめ（まよったらこれ） ---------- */
+.pick{
+  margin-top:18px;padding:18px;border-radius:12px;
+  background:var(--ink);color:#fff;border:3px solid var(--yellow);
+}
+.pick-lab{
+  display:inline-block;font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;
+  background:var(--yellow);color:var(--ink);font-weight:700;padding:3px 10px;border-radius:4px;
+}
+.pick-name{font-size:1.32rem;font-weight:900;margin-top:10px;color:#fff;line-height:1.25}
+@media(max-width:620px){.pick-name{font-size:1.1rem}}
+.pick-eg{font-size:.76rem;color:#c9c9c9;margin-top:4px;line-height:1.55}
+.pick-why{margin:12px 0 0;padding-left:1.15em;font-size:.83rem;line-height:1.65}
+.pick-why li{margin-bottom:5px}
+.pick-why li::marker{color:var(--yellow)}
+.pick-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.pick .badge{background:#262626;border-color:#3d3d3d;color:#e6e6e6}
+.pick .badge.hot{background:var(--yellow);border-color:var(--yellow);color:var(--ink);font-weight:700}
+.pick .note{color:#a8a8a8;margin-top:10px}
+.pick .actions{margin-top:14px}
+.pick .btn.sub{background:#2a2a2a;color:#fff;border-color:#555}
+.pick .btn.sub:hover{background:#3a3a3a}
+.pick .btn.sub:disabled{opacity:.4}
+
+/* ---------- detail blocks ---------- */
+.block{border:1px solid var(--line);border-radius:11px;padding:15px;background:#fffdf7;margin-top:16px}
+.block h3{font-size:.92rem;font-weight:800;margin-bottom:6px}
+.block .why{font-size:.8rem;color:var(--ink-2)}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:4px 10px;font-size:.82rem;margin-top:10px}
+.kv dt{color:var(--muted);font-size:.75rem}
+.kv dd{margin:0}
+
+/* ---------- actions ---------- */
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px;align-items:center}
+.btn{
+  border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:9px;
+  padding:11px 20px;font-size:.9rem;font-weight:700;cursor:pointer;transition:.12s;
+}
+.btn:hover{background:#000;transform:translateY(-1px)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn.sub{background:#fff;color:var(--ink)}
+.btn.sub:hover{background:#f6f2e4}
+.btn.yellow{background:var(--yellow);color:var(--ink);border-color:var(--yellow-deep)}
+.btn.yellow:hover{background:#ffdc2e}
+.btn.sm{padding:6px 12px;font-size:.76rem;border-radius:7px}
+.spacer{flex:1}
+
+/* ---------- result ---------- */
+.result-head{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;justify-content:space-between}
+.title-big{font-size:1.9rem;font-weight:900;letter-spacing:-.02em;line-height:1.2}
+@media(max-width:620px){.title-big{font-size:1.42rem}}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.badge{font-size:.7rem;border:1px solid var(--line);background:#fffdf7;border-radius:999px;padding:3px 10px;color:var(--ink-2)}
+.badge.key{background:var(--yellow);border-color:var(--yellow-deep);color:var(--ink);font-weight:700}
+.pitch{margin-top:16px;font-size:.95rem;font-weight:700;padding:16px;background:#fffaea;border-radius:10px;border:1px dashed var(--yellow-deep)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.showcase{margin-top:16px;padding:16px;border-radius:10px;background:var(--ink);color:#fff}
+.showcase .lab{font-family:var(--mono);font-size:.64rem;color:var(--yellow);letter-spacing:.12em}
+.showcase p{margin-top:6px;font-size:.9rem;line-height:1.65}
+ul.plain{margin:8px 0 0;padding-left:1.1em;font-size:.85rem}
+ul.plain li{margin-bottom:5px}
+.caution{margin-top:16px;padding:12px 14px;border-radius:9px;background:#fff3f0;border:1px solid #f2c4bb;color:#8a2b1c;font-size:.82rem}
+
+/* ---------- outputs ---------- */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tabs button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 13px;font-size:.8rem;cursor:pointer}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.out-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.out-head h3{font-size:1rem;font-weight:800}
+.out-head .meta{font-family:var(--mono);font-size:.68rem;color:var(--muted)}
+textarea.out{
+  width:100%;min-height:340px;border:1px solid var(--line);border-radius:10px;
+  padding:14px;font-family:var(--mono);font-size:.76rem;line-height:1.65;
+  background:#fffdf7;color:var(--ink);resize:vertical;white-space:pre-wrap;
+}
+@media(max-width:620px){textarea.out{min-height:260px;font-size:.72rem}}
+.copyrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.copied{color:var(--green);font-size:.78rem;font-weight:700}
+
+/* ---------- toast ---------- */
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-size:.8rem;opacity:0;pointer-events:none;transition:.2s;z-index:60}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- footer ---------- */
+.foot{max-width:1120px;margin:0 auto;padding:0 16px 40px;font-size:.72rem;color:var(--muted)}
+.foot a{color:var(--muted)}
+
+/* ---------- print ---------- */
+@media print{
+  .bar,.rail,.actions,.tabs,.copyrow,.toast,.foot{display:none!important}
+  body{background:#fff}
+  body::before{display:none}
+  .card{border:none;box-shadow:none;padding:0}
+  textarea.out{min-height:0;height:auto;overflow:visible;border:none;background:#fff;font-size:9pt}
+  .shell{padding:0}
+}

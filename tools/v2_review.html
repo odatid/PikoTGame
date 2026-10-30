@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PK//PROTO v2 — 全画面 見た目確認</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/v2/style.css">
+<style>
+  /* この確認ページ専用（公開物 index.html には含まれない） */
+  body{background:#eceae2}
+  .rev-bar{background:#141414;border-bottom:4px solid #ffd400;padding:10px 16px;position:sticky;top:0;z-index:50}
+  .rev-bar-in{max-width:1120px;margin:0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rev-bar .t{color:#ffd400;font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.1em;margin-right:8px}
+  .rev-bar button{
+    background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:999px;
+    padding:5px 11px;font-size:.72rem;cursor:pointer;font-family:inherit;
+  }
+  .rev-bar button.on{background:#ffd400;color:#141414;border-color:#e8bf00;font-weight:700}
+  .rev-bar button:hover{background:#3a3a3a}
+  .rev-bar button.on:hover{background:#ffdc2e}
+  .rev-note{max-width:1120px;margin:0 auto;padding:14px 16px 0;font-size:.76rem;color:#5a5a5a;line-height:1.6}
+  .rev-note b{color:#141414}
+  .rev-stage{max-width:1120px;margin:0 auto;padding:14px 16px 60px}
+  .rev-frame{border:2px solid #141414;border-radius:12px;overflow:hidden;background:#fbf7ea}
+  .rev-frame .card{border:none;border-radius:0;box-shadow:none;margin:0}
+  .rev-frame .rail{display:none}
+  .rev-label{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.1em;color:#6b6b6b;margin-bottom:6px}
+  #hiddenApp{position:absolute;left:-99999px;top:0;width:1120px}
+</style>
+</head>
+<body>
+
+<div class="rev-bar">
+  <div class="rev-bar-in" id="revNav"><span class="t">PREVIEW</span></div>
+</div>
+
+<p class="rev-note">
+  <b>全8画面の見た目確認用ページです（公開物には含まれません）。</b>
+  上タブで画面を切り替えます。状態は固定（スイカゲーム＋ヴァンパイアサバイバーズ／落ちモノパズル／Pen・Apple・Pineapple／積み上がる）。
+  実際に選んで動かしたいときは <b>index.html</b> を開いてください。
+</p>
+
+<div class="rev-stage">
+  <div class="rev-label" id="revLabel"></div>
+  <div class="rev-frame" id="revFrame"></div>
+</div>
+
+<!-- 描画用の作業台（画面外）。PK2app は #app に描くので、こちらへ描いて複製する -->
+<div id="hiddenApp"><main id="app"></main><nav id="rail"></nav></div>
+<div class="toast" id="toast"></div>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script src="../assets/v2/app.js"></script>
+
+<script>
+window.addEventListener('load', function(){
+  var KEY = 'pkproto.v2';
+  var backup = null;
+  try{ backup = localStorage.getItem(KEY); }catch(e){}
+
+  var BASE = {
+    games:['g_suika','g_vamp'], genre:'g_otoshimono', hook:'h_item', twist:'tw_grow',
+    exp:'some', goal:'both', tab:'plan', check:{a:true,b:true,c:false}
+  };
+
+  var SCREENS = [
+    {key:'intro',  label:'00 はじめる',                  seed:{genre:null, hook:null, twist:null}},
+    {key:'games',  label:'01 好きなゲーム（41本）',       seed:{genre:null, hook:null, twist:null}},
+    {key:'genre',  label:'02 ジャンル（例文・注釈つき）',  seed:{genre:null, hook:null, twist:null}},
+    {key:'hook',   label:'03 ピコ太郎の乗せ方（8種）',     seed:{hook:null}},
+    {key:'exp',    label:'04 経験と目的（答えなくてOK）',  seed:{}},
+    {key:'result', label:'05 ゲーム案',                  seed:{}},
+    {key:'outplan',label:'06 出力：1枚企画書',            seed:{step:'out', tab:'plan'}},
+    {key:'outunity',label:'06 出力：Unity MCP',          seed:{step:'out', tab:'unity'}}
+  ];
+
+  var nav = document.getElementById('revNav');
+  var frame = document.getElementById('revFrame');
+  var labelEl = document.getElementById('revLabel');
+  var state = window.PK2app.state;
+
+  function draw(s){
+    /* 毎回ベースから作り直す（前画面の状態を引き継がない） */
+    Object.keys(BASE).forEach(function(k){ state[k] = BASE[k]; });
+    state.games = BASE.games.slice();
+    state.check = {a:true, b:true, c:false};
+    Object.keys(s.seed).forEach(function(k){ state[k] = s.seed[k]; });
+    if(s.key !== 'outplan' && s.key !== 'outunity'){ state.step = s.key; }
+
+    window.PK2app.render();                        /* 画面外の #app に描画 */
+    frame.innerHTML = document.getElementById('app').innerHTML;
+    labelEl.textContent = s.label;
+  }
+
+  SCREENS.forEach(function(s, i){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = (i + 1) + '. ' + s.label;
+    b.addEventListener('click', function(){
+      nav.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      draw(s);
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+    nav.appendChild(b);
+    if(i === 0){ b.classList.add('on'); }
+  });
+
+  draw(SCREENS[0]);
+
+  /* 確認ページが保存内容を書き換えないよう元に戻す */
+  try{
+    if(backup === null) localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, backup);
+  }catch(e){}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PK//PROTO v2 — 好きなゲームに、ピコ太郎を乗せる</title>
+<meta name="description" content="好きなゲームジャンルにピコ太郎を1か所だけ乗せて、1分で面白いゲーム案に着地する。企画書・画像・素材・Webプロト・Unity・提案書の6種類を出力します。">
+<meta name="theme-color" content="#141414">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/v2/style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="wordmark" href="#" aria-label="最初に戻る">
+      <span class="wm-main">PK<span class="slash">//</span>PROTO</span>
+      <span class="wm-sub">好きなゲームに、ピコ太郎を乗せる。</span>
+    </a>
+    <div class="bar-right">
+      <span class="ver">v2</span>
+      <button class="icon-btn" id="btnPrint" type="button" title="印刷 / PDF保存">印刷</button>
+      <button class="icon-btn" id="btnRestart" type="button" title="最初からやり直す">最初から</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="進行状況"></nav>
+  <main id="app" class="app" tabindex="-1"></main>
+</div>
+
+<footer class="foot">
+  <p>PK//PROTO v2 — 生成AIのAPIは使いません。案はDBの文章から決定的に組み立てます（乱数なし）。</p>
+  <p>ピコ太郎の公式素材・実在の人物の顔・ロゴは使いません。角刈りパンチ／鼻にちょいがけの黒縁眼鏡／口髭／黄色×黒のヒョウ柄という記号で扱います。</p>
+  <p><a href="https://odatid.github.io/PikoProgen/">旧版（v1・DNAシート方式）はこちら</a></p>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="assets/v2/genres.js"></script>
+<script src="assets/v2/plan.js"></script>
+<script src="assets/v2/prompts.js"></script>
+<script src="assets/v2/app.js"></script>
+</body>
+</html>

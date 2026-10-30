@@ -1,0 +1,13 @@
+id,label,pos,why
+SCORE,SCORE,右上,今の得点。増えた瞬間にポップさせる
+TIMER,TIMER,上中央,残り時間。最後の10秒は色を変える
+LIFE,LIFE,左上,残機。減ったら画面を一瞬揺らす
+COMBO,COMBO,中央上,連続成功。3以上で表示する
+JUDGE,JUDGE,中央,PERFECT / MISS を0.4秒だけ出す
+TARGET,TARGET,左上,集める数や残り数を常時表示
+NEXT,NEXT,右上,次に来るアイテムを予告する
+GUIDE,操作説明,開始時のみ,最初の3秒だけ出す
+RESULT,RESULT,結果画面,成功／失敗と理由を1文で
+START,START,タイトル,開始ボタン。押しやすく大きく
+RETRY,RETRY,結果画面,もう一回。押したら完全初期化
+LANE,レーン表示,下部,受け皿の位置を示す
