@@ -361,6 +361,29 @@ R.result = () => {
     </div>
 
     <div class="block">
+      <h3>不条理：無理やん → でも惜しい</h3>
+      <p class="why">この企画の笑いの芯は「真顔で、無理なことをやる」です。要求は無理に見せて、救いを1つだけ入れる。失敗しても惜しさで終わるようにします。</p>
+      <dl class="kv">
+        <dt>要求される無理</dt><dd>${esc(P.absurd.demand)}</dd>
+        <dt>なぜ無理に見えるか</dt><dd>${esc(P.absurd.impossible)}</dd>
+        <dt>でも、できそう（救い）</dt><dd>${esc(P.absurd.rescue)}</dd>
+        <dt>合格の目安</dt><dd>${esc(P.absurd.rate)}</dd>
+        <dt>笑いが起きる1コマ</dt><dd>${esc(P.absurd.laugh)}</dd>
+      </dl>
+      <p class="note">救いは1つだけにしてください。2つ以上入れると簡単になりすぎて、「無理やん」の面白さが消えます。理不尽（手も足も出ない）にすると、笑いではなく怒りになります。</p>
+    </div>
+
+    <div class="block">
+      <h3>気持ちよさ（ジュース）：この5つを入れる</h3>
+      <p class="why">動くだけでは、面白くならない。同じ1回の当たりを3倍気持ちよくする演出を、最初から5つ決めてあります。</p>
+      <dl class="kv">
+        ${P.juice.map(j=>`<dt>${esc(j.name)}</dt><dd>${esc(j.when)}：${esc(j.how)}</dd>`).join('')}
+      </dl>
+      <p class="note">${esc(P.juiceLine)}</p>
+      <p class="note">この5つは、WEBプロト・Unity・企画書・提案書のすべてに同じ内容で入ります。とくに<b>つぶれ（スケールの誇張）</b>は、キャラの動きが一気に上手く見えるので外さないでください。</p>
+    </div>
+
+    <div class="block">
       <h3>刺激の1手：${esc(P.twistLabel)}</h3>
       <p class="why">${esc(P.twistOne)}</p>
       <p class="why" style="margin-top:6px">この一手が、単純な往復を「判断する遊び」に変えます。</p>
@@ -416,8 +439,8 @@ R.result = () => {
 /* 06 out */
 const OUT_TABS = [
   {id:'plan',     label:'1枚企画書'},
-  {id:'image',    label:'イメージ画像'},
-  {id:'assets',   label:'2D素材スクラップブック'},
+  {id:'image',    label:'イメージ1枚'},
+  {id:'assets',   label:'2D素材シート（A4 1枚）'},
   {id:'web',      label:'WEBプロト'},
   {id:'unity',    label:'Unity MCP'},
   {id:'proposal', label:'提案書'}
@@ -426,9 +449,9 @@ const OUT_TABS = [
 const OUT_HELP = {
   plan:'生成AIに貼ると、A4 1枚の企画書になります。まずこれだけ作れば発表できます。',
   image:'画像生成AIに貼ります。1枚目はここで作った企画書を一緒に貼ると精度が上がります。',
-  assets:'上のイメージ画像を添付してから貼ります。Unityで使う素材と取り込み設定まで出ます。',
-  web:'コード生成AIに貼ります。1ファイルで動くWebゲームが出ます。まず遊べる形を確認。',
-  unity:'Unity MCP接続済みのCodex / Claudeに貼ります。クレジット節約の指示入りです。',
+  assets:'上のイメージ画像を添付してから貼ります。素材は「A4 1枚のシート」で頼む形にしました（1枚ずつだと断られやすいため）。',
+  web:'コード生成AIに貼ります。1ファイルで動くWebゲームが出ます。ジューシー（気持ちよさ）の実装指示入りです。',
+  unity:'Unity MCP接続済みのCodex / Claudeに貼ります。クレジット節約とジュースの指示入りです。',
   proposal:'古坂大魔王様側と評価者に向けた提案書を作るプロンプトです。'
 };
 
@@ -468,7 +491,7 @@ R.out = () => {
       <ul class="plain">
         <li><b>1. 1枚企画書</b>をAIに貼る → 企画書が出る</li>
         <li><b>2. イメージ画像</b>を、1の企画書と一緒に画像AIへ → 画面イメージが出る</li>
-        <li><b>3. 2D素材</b>を、2の画像を添付して依頼 → 素材一式と取り込み設定</li>
+        <li><b>3. 2D素材シート</b>を、2の画像を添付して依頼 → A4 1枚に12マスの素材シートが出る</li>
         <li><b>4. WEBプロト</b>をコードAIへ → 遊べる1ファイルが出る</li>
         <li><b>5. Unity MCP</b>を、1〜4を添付して依頼 → UnityのシーンとPrefab</li>
         <li><b>6. 提案書</b>を、ここまでの成果物と一緒に → 発表用の提案書</li>
