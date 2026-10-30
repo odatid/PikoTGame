@@ -14,6 +14,517 @@ window.PK2 = window.PK2 || {};
 
 const PICO_LOOK = `角刈りパンチ（サイドと後ろは刈り上げ、てっぺんだけ短く縮れて立ち上がる）／鼻にちょいがけの黒縁眼鏡（サングラスではない・レンズ越しに目が見える）／口の上の口髭（細く短い・顎髭なし）／黄色×黒のヒョウ柄の衣装。表情は真顔寄り。`;
 
+/* ------------------------------------------------------------------
+   見た目の数値仕様。
+   文章だけの指定では、生成のたびに別人になる（毎回「似ていない」）。
+   比率を数値で固定すると、同じ絵が再現される。
+   基準：頭の幅を W=1.00 とする。頭の高さは 1.28W。
+   ------------------------------------------------------------------ */
+const PICO_SPEC = {
+  body: [
+    '頭身：ゲーム内のキャラは 2.6頭身。1枚絵・見せ場は 2.0頭身（頭を大きくする）。',
+    '頭：全高の38%。幅 W1.00 × 高さ 1.28W（縦長）。',
+    '首：幅 0.26W × 高さ 0.12W。ほぼ見えない。',
+    '肩幅：1.00W。胴：高さ 0.80W。腰は肩より少し細い。',
+    '腕：上腕 0.48W／前腕 0.44W／太さ 0.15W。',
+    '脚：太さ 0.17W／長さ 0.70W。',
+    '靴：長さ 0.32W／高さ 0.13W。白。つま先は少しとがらせる。'
+  ],
+  face: [
+    '頭頂を 0.00、顎を 1.00 とする縦の目盛りで置く（ここを外すと別人になる）。',
+    '生え際 0.18／眉 0.31／目の中心 0.38／鼻の先 0.51／口髭 0.58／口の中心 0.67／顎 1.00。',
+    '※ 目が上半分にあること。目を顔の真ん中に置くと、似なくなる。',
+    '輪郭は「半幅の表」で描く（下の表のとおり）。頬骨で最大、顎へ向かって細く落とす。',
+    '  高さ0.00→半幅0.000／0.05→0.260／0.12→0.400／0.20→0.455／0.28→0.480／0.38→0.495',
+    '  0.46→0.500（最大＝1.00W）／0.55→0.487／0.65→0.455／0.75→0.410／0.85→0.360',
+    '  0.95→0.310／1.05→0.285／1.15→0.268／1.24→0.260（顎幅 0.52W）',
+    '※ 幅を「一定」にしないこと。一定にすると四角い顔になり、別人に見える。',
+    '耳：横 0.452W・半径 0.045W × 0.100W。外側が頭の最大幅（0.50W）を超えないこと。',
+    '目：幅 0.28W／間隔 0.16W。細めた横線でよい（点にしない）。',
+    '鼻：幅 0.26W。小鼻を2つの丸で表す。'
+  ],
+  hair: [
+    'てっぺんは平らな箱。頭頂から 0.18 まで。前髪は水平に切る（流さない・とがらせない）。',
+    'パンチパーマの表現：てっぺんの縁に、細かい波を3〜5個だけ入れる。つるっとさせない。',
+    'こめかみから下は刈り上げ。肌に近い色で幅 0.06W。もみあげは耳の手前で止める。',
+    '後ろは首の上で水平に切る。色 #1C1919。ツヤ・ハイライトは描かない。'
+  ],
+  glasses: [
+    '黒縁。枠の太さ 0.030W。レンズは横長の角丸（幅 0.36W × 高さ 0.16W）。左右の間隔 0.08W。',
+    'つるは耳へ。ブリッジは鼻の上をまたぐ。',
+    'レンズは透明。肌と目が透ける。目を隠さない。',
+    '掛け方：レンズの上端は目の中心より 0.03W 上。下端は鼻の先（目盛り0.51）にそろえる。'
+      + '目の横線がレンズの上端にかかる（これが「鼻にちょいがけ」に見える形）。',
+    'サングラスにしない。レンズを黒く塗らない。色眼鏡にしない。つるなしにしない。'
+  ],
+  mustache: '口の上。幅 0.44W／太さ 0.05W。中央は細くつながる（切れてもよい）。'
+    + '端は少し下へ垂らす。顎髭は描かない。',
+  mouth: '横に大きく開ける（幅 0.48W）。中は赤 #C6392F。上の歯を白い帯で1本入れる。',
+  leopard: [
+    '下地 #FFD400。斑点 #141414。',
+    '斑点は丸ではなく、少し歪んだ6角形。直径 0.045W。',
+    '横の間隔 0.16W、縦の間隔 0.14W。互い違いにずらす（縦にそろえない）。',
+    '服の形で切り抜く（柄を先に描いて、服でマスクする）。1体あたり12〜18個。増やしすぎない。'
+  ],
+  colors: '肌 #FDC7A9／肌の影 #E7A483／髪と眼鏡と口髭 #1C1919／ヒョウ柄の下地 #FFD400／斑点 #141412／口の中 #C6392F／歯と靴 #FFFFFF',
+  ng: 'サングラス／色眼鏡／坊主頭／長髪／顎髭／全身タイツ／実在の人物の写真をなぞる／公式ロゴ'
+};
+
+/* 目は全ポーズで「細めた横線」のまま。口だけ開く。この組み合わせが「似ている」の核。
+   （実測：参考にした絵はどれも、口は大きく開き、目は細めたまま） */
+const FACE_RULE = '目は細めた横線のまま動かさない。変えるのは口の開きだけ。'
+  + '笑って目を三日月にすると、別のキャラになる。';
+
+/* ポーズ12種。演出の状態と1対1で対応させる（スケール誇張とセットで使う） */
+const PICO_POSES = [
+  {id:'idle',    name:'立ち',      how:'足を肩幅。腕は体の横で肘を15度曲げる。口は少し開ける。'},
+  {id:'run',     name:'走り',      how:'体を前へ8度傾ける。脚は前+30度／後ろ-35度。腕は脚と逆に振る。'},
+  {id:'jump',    name:'跳び',      how:'脚をそろえて下へ伸ばす。両腕を肩から120度上げる。sx0.85／sy1.15。'},
+  {id:'land',    name:'着地',      how:'膝を深く曲げ、腰を0.18W下げる。両腕は横へ開く。sx1.20／sy0.80。'},
+  {id:'hit',     name:'被弾',      how:'上体を後ろへ12度。腕を後ろへ引く。目は細めたまま。口を開ける。'},
+  {id:'success', name:'成功',      how:'片膝を上げる（もも+70度）。両腕を上へ。口を最大に開ける。'},
+  {id:'fail',    name:'失敗',      how:'膝を曲げ、上体を前へ10度。腕は下ろす。口は閉じる。目はそのまま。'},
+  {id:'dance',   name:'リズム',    how:'腰を左右へ0.08Wずらす。腕は片方ずつ交互に上げる。足踏み。'},
+  {id:'cheer',   name:'ガッツポーズ', how:'両腕を真上へ（肩から110度）。胴を少し反らす。口を最大に開ける。'},
+  {id:'slip',    name:'すべり',    how:'上体を後ろへ26度。両腕を振り回す。片脚を前に投げ出す。口を大きく開ける。'},
+  {id:'peek',    name:'のぞきこむ', how:'上体を前へ14度。片手をひたいの横へ。もう一方は腰。口は小さく開ける。'},
+  {id:'dizzy',   name:'目を回す',  how:'上体を右へ12度。両腕をだらんと下ろす。脚はがに股。口は半開き。'}
+];
+
+const POSE_BY_GENRE = {
+  g_rhythm:'dance', g_fishing:'idle', g_wall:'hit', g_batting:'run', g_putting:'idle',
+  g_tsubo:'success', g_haystack:'peek', g_gun:'idle', g_shot:'run', g_platy:'slip',
+  g_otoshimono:'dizzy', g_puzzact:'cheer', g_horde:'hit', g_run:'run', g_run3d:'run'
+};
+
+/* この企画で使うポーズを決定的に選ぶ（乱数なし） */
+function pickPoses(plan){
+  const ids = ['idle','jump','land','success','fail'];
+  const extra = POSE_BY_GENRE[plan.genreId];
+  if(extra && ids.indexOf(extra)<0) ids.push(extra);
+  if(ids.length<6 && ids.indexOf('run')<0) ids.push('run');
+  return PICO_POSES.filter(p=>ids.indexOf(p.id)>=0);
+}
+
+/* 素材シート用の短い版。長くすると画像AIに断られるので、比率だけ4行に絞る */
+function picoSpecShort(){
+  return [
+    '頭身は2.6頭身。頭は全高の38%。頭の幅を1.00としたとき、高さ1.28。',
+    '顔の目盛り（頭頂0.00→顎1.00）：生え際0.18／眉0.31／目0.38／鼻0.51／口髭0.58／口0.67。',
+    '眼鏡は黒縁の角丸（幅0.36・高さ0.16）。上端は目の中心より少し下（ちょいがけ）。',
+    '口は横に大きく開け、目は細い横線のまま。ヒョウ柄は直径0.045の斑点を互い違いに12〜18個。'
+  ].join('\n');
+}
+
+/* ==================================================================
+   ピコ太郎の描画コード（Canvas 2D・図形のみ・外部変数なし）
+   この1つの関数を、WEBプロトのプロンプトに「そのまま使え」と渡す。
+   人が指定した寸法で描かれるので、生成のたびに別人にならない。
+   座標系：x,y = 足元の位置／s = 頭の幅（1.00 = s ピクセル）
+   ================================================================== */
+function drawPico(ctx, x, y, s, pose, sx, sy, dir){
+  var C = {skin:'#FDC7A9', skin2:'#E7A483', ink:'#141212', ink2:'#2A2522',
+           leo:'#FFD400', leo2:'#D8B300', spot:'#141412', mouth:'#C6392F', white:'#FFFFFF'};
+    /* 角度：0=右、90=上、270=下 */
+  var POSES = {
+    idle:    {lean:0,  aL:[250,265], aR:[290,275], lL:[265,265], lR:[275,275], mouth:0.35},
+    run:     {lean:8,  aL:[215,240], aR:[325,300], lL:[300,285], lR:[240,255], mouth:0.50},
+    jump:    {lean:0,  aL:[150,140], aR:[30,40],   lL:[275,270], lR:[265,270], mouth:0.70},
+    land:    {lean:4,  aL:[200,215], aR:[340,325], lL:[245,215], lR:[295,325], mouth:0.55},
+    hit:     {lean:-12,aL:[215,235], aR:[325,305], lL:[262,268], lR:[278,272], mouth:0.60},
+    success: {lean:-4, aL:[120,110], aR:[60,70],   lL:[300,270], lR:[270,278], mouth:1.00},
+    fail:    {lean:10, aL:[255,270], aR:[285,270], lL:[250,230], lR:[290,310], mouth:0.00},
+    dance:   {lean:0,  aL:[160,120], aR:[300,340], lL:[280,270], lR:[260,270], mouth:0.65},
+    cheer:   {lean:-6, aL:[110,105], aR:[70,75],   lL:[268,268], lR:[272,272], mouth:1.00},
+    slip:    {lean:-26,aL:[200,150], aR:[340,30],  lL:[300,250], lR:[240,290], mouth:0.85},
+    peek:    {lean:14, aL:[210,150], aR:[330,30],  lL:[265,265], lR:[275,275], mouth:0.30},
+    dizzy:   {lean:12, aL:[280,300], aR:[260,240], lL:[250,240], lR:[290,300], mouth:0.45}
+  };
+  var p = POSES[pose] || POSES.idle;
+  var H = 3.05;                       /* 全高（頭の幅=1.00 の単位）。頭1.28 → 2.38頭身 */
+  var Y = function(v){ return v - H; };  /* 頭頂0 → 足元H を、足元原点へ */
+
+  /* ---- 顔の目盛り（PICO_SPEC と同じ数字。ここが「似せる」の唯一の根拠） ----
+     頭頂 0.00 → 顎 1.28（高さ 1.28W）。この区間を 0.00〜1.00 として置く。 */
+  var HEAD_TOP = 0.00, HEAD_BOT = 1.28;
+  var FY = function(f){ return HEAD_TOP + f * (HEAD_BOT - HEAD_TOP); };
+  var F = {hairline:FY(0.18), brow:FY(0.31), eye:FY(0.38), nose:FY(0.51),
+           mustache:FY(0.58), mouth:FY(0.67)};
+
+  var D = (dir === -1) ? -1 : 1;      /* 左右反転（ポーズの向きを増やす） */
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s * (sx || 1) * D, s * (sy || 1));
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.rotate(-p.lean * Math.PI / 180 * D);   /* 前傾・のけぞり */
+
+  /* --- 手足：棒人間に見せないため、袖とズボンは「黒縁＋色」の2重ストロークで描く --- */
+  var limb = function(x1, y1, l1, a1, l2, a2, w, col, ol){
+    var r1 = a1 * Math.PI / 180, r2 = a2 * Math.PI / 180;
+    var ex = x1 + Math.cos(r1) * l1, ey = y1 - Math.sin(r1) * l1;
+    var hx = ex + Math.cos(r2) * l2, hy = ey - Math.sin(r2) * l2;
+    if(ol){
+      ctx.strokeStyle = C.ink; ctx.lineWidth = w + ol;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+    }
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+    return [hx, hy];
+  };
+  var hand = function(pt, col){
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(pt[0], pt[1], 0.095, 0, 6.284); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 0.028; ctx.stroke();
+  };
+
+  /* --- 奥の腕・脚（奥は少し暗くする） --- */
+  var armL = limb(-0.46, Y(1.52), 0.48, p.aL[0], 0.44, p.aL[1], 0.15, C.leo2, 0.06);
+  limb(-0.17, Y(2.20), 0.38, p.lL[0], 0.34, p.lL[1], 0.18, C.leo2, 0.06);
+  limb( 0.17, Y(2.20), 0.38, p.lR[0], 0.34, p.lR[1], 0.18, C.leo2, 0.06);
+  hand(armL, C.skin2);
+
+  /* --- 靴（白・つま先を少しとがらせる） --- */
+  var shoe = function(hx, hy, dir){
+    ctx.fillStyle = C.white;
+    ctx.beginPath();
+    ctx.moveTo(hx - 0.11, hy);
+    ctx.lineTo(hx + 0.11, hy);
+    ctx.lineTo(hx + 0.11 + dir * 0.21, hy + 0.10);
+    ctx.lineTo(hx - 0.11 + dir * 0.11, hy + 0.13);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 0.030; ctx.stroke();
+  };
+  var legL = [-0.17, Y(2.20)], legR = [0.17, Y(2.20)];
+  var kneeL = [legL[0] + Math.cos(p.lL[0]*Math.PI/180)*0.38, legL[1] - Math.sin(p.lL[0]*Math.PI/180)*0.38];
+  var kneeR = [legR[0] + Math.cos(p.lR[0]*Math.PI/180)*0.38, legR[1] - Math.sin(p.lR[0]*Math.PI/180)*0.38];
+  var footL = [kneeL[0] + Math.cos(p.lL[1]*Math.PI/180)*0.34, kneeL[1] - Math.sin(p.lL[1]*Math.PI/180)*0.34];
+  var footR = [kneeR[0] + Math.cos(p.lR[1]*Math.PI/180)*0.34, kneeR[1] - Math.sin(p.lR[1]*Math.PI/180)*0.34];
+  shoe(footL[0], footL[1], -1);
+  shoe(footR[0], footR[1], 1);
+
+  /* --- 胴（ヒョウ柄）。柄は胴の形でマスクする --- */
+  var torso = function(){
+    ctx.beginPath();
+    ctx.moveTo(-0.50, Y(1.40));
+    ctx.quadraticCurveTo(-0.44, Y(2.20), -0.26, Y(2.22));
+    ctx.lineTo(0.26, Y(2.22));
+    ctx.quadraticCurveTo(0.44, Y(2.20), 0.50, Y(1.40));
+    ctx.quadraticCurveTo(0, Y(1.32), -0.50, Y(1.40));
+    ctx.closePath();
+  };
+  torso(); ctx.fillStyle = C.leo; ctx.fill();
+  ctx.save(); torso(); ctx.clip();
+  ctx.fillStyle = C.spot;
+  var i, j, n = 0;
+  for(j = 0; j < 6; j++){
+    for(i = 0; i < 4; i++){
+      if(n++ > 17) break;
+      var px = -0.46 + i * 0.16 + (j % 2 ? 0.08 : 0);
+      var py = Y(1.42) + j * 0.14;
+      ctx.beginPath();
+      ctx.moveTo(px + 0.023, py);
+      ctx.lineTo(px + 0.011, py + 0.021);
+      ctx.lineTo(px - 0.014, py + 0.014);
+      ctx.lineTo(px - 0.023, py - 0.006);
+      ctx.lineTo(px - 0.006, py - 0.021);
+      ctx.lineTo(px + 0.019, py - 0.017);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.restore();
+  torso(); ctx.strokeStyle = C.ink; ctx.lineWidth = 0.035; ctx.stroke();
+
+  /* --- 首（幅0.26W。ほぼ見えない長さ） --- */
+  ctx.fillStyle = C.skin2;
+  ctx.fillRect(-0.13, Y(1.10), 0.26, 0.26);
+
+  /* --- 頭：幅の表から輪郭を作る（数値で決まるので毎回同じ形になる） ---
+     左半分の (高さ, 半幅) を上から下へ並べ、顎で閉じて右半分を戻す。
+     実測で「下ぶくれ」だったので、顎に向かって細く落ちる表に置き換えた。
+     仕様：最大幅 1.00W（頬骨あたり）／顎 0.52W／高さ 1.28W。 */
+  var PROFILE = [
+    [0.00, 0.000], [0.05, 0.260], [0.12, 0.400], [0.20, 0.455],
+    [0.28, 0.480], [0.38, 0.495], [0.46, 0.500], [0.55, 0.487],
+    [0.65, 0.455], [0.75, 0.410], [0.85, 0.360], [0.95, 0.310],
+    [1.05, 0.285], [1.15, 0.268], [1.24, 0.260]
+  ];
+  var head = function(){
+    var pts = PROFILE.map(function(q){ return [-q[1], Y(q[0])]; });
+    var n = pts.length, k, mx, my;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for(k = 1; k < n - 1; k++){                     /* 左半分を上から下へ */
+      mx = (pts[k][0] + pts[k+1][0]) / 2;
+      my = (pts[k][1] + pts[k+1][1]) / 2;
+      ctx.quadraticCurveTo(pts[k][0], pts[k][1], mx, my);
+    }
+    var lastL = pts[n - 1];                          /* 顎下を回り込む */
+    ctx.quadraticCurveTo(lastL[0], Y(1.33), 0, Y(1.345));
+    ctx.quadraticCurveTo(-lastL[0], Y(1.33), -lastL[0], lastL[1]);
+    for(k = n - 2; k >= 1; k--){                    /* 右半分を下から上へ */
+      mx = (-pts[k][0] - pts[k-1][0]) / 2;
+      my = (pts[k][1] + pts[k-1][1]) / 2;
+      ctx.quadraticCurveTo(-pts[k][0], pts[k][1], mx, my);
+    }
+    ctx.quadraticCurveTo(0, pts[0][1], pts[0][0], pts[0][1]);
+    ctx.closePath();
+  };
+  /* 耳（顔の横。外側の端が頭の最大幅を超えないように置く。
+     超えると「頭が横に広い」と測られる＝下ぶくれ・横広に見える原因になる） */
+  var ear = function(sgn){
+    ctx.beginPath();
+    ctx.ellipse(sgn * 0.452, Y(0.50), 0.045, 0.100, 0, 0, 6.284);
+    ctx.fillStyle = C.skin; ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 0.026; ctx.stroke();
+  };
+  ear(-1); ear(1);
+  head(); ctx.fillStyle = C.skin; ctx.fill();
+  head(); ctx.strokeStyle = C.ink; ctx.lineWidth = 0.035; ctx.stroke();
+
+  /* --- 鼻（幅0.26W。小鼻を2つの丸で） --- */
+  ctx.fillStyle = C.skin2;
+  ctx.beginPath(); ctx.arc(-0.065, Y(F.nose), 0.055, 0, 6.284); ctx.fill();
+  ctx.beginPath(); ctx.arc( 0.065, Y(F.nose), 0.055, 0, 6.284); ctx.fill();
+
+  /* --- 目：細めた横線（幅0.28W・間隔0.16W・全ポーズ共通） --- */
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 0.045;
+  ctx.beginPath(); ctx.moveTo(-0.36, Y(F.eye)); ctx.lineTo(-0.08, Y(F.eye)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 0.08, Y(F.eye)); ctx.lineTo( 0.36, Y(F.eye)); ctx.stroke();
+  /* 眉（薄く1本。目との距離で顔の印象が決まる） */
+  ctx.strokeStyle = 'rgba(20,18,18,0.55)'; ctx.lineWidth = 0.030;
+  ctx.beginPath(); ctx.moveTo(-0.34, Y(F.brow)); ctx.lineTo(-0.10, Y(F.brow)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 0.10, Y(F.brow)); ctx.lineTo( 0.34, Y(F.brow)); ctx.stroke();
+
+  /* --- 口髭（幅0.44W・太さ0.05W・端は少し下へ垂らす） --- */
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 0.050;
+  ctx.beginPath();
+  ctx.moveTo(-0.22, Y(F.mustache + 0.035));
+  ctx.quadraticCurveTo(-0.11, Y(F.mustache - 0.012), 0, Y(F.mustache + 0.005));
+  ctx.quadraticCurveTo(0.11, Y(F.mustache - 0.012), 0.22, Y(F.mustache + 0.035));
+  ctx.stroke();
+
+  /* --- 口：幅0.48W。開き量 p.mouth（0=閉じる、1=最大） --- */
+  var mo = p.mouth;
+  if(mo < 0.05){
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 0.040;
+    ctx.beginPath(); ctx.moveTo(-0.20, Y(F.mouth)); ctx.lineTo(0.20, Y(F.mouth)); ctx.stroke();
+  } else {
+    var mw = 0.24 * (0.72 + 0.28 * mo), mh = 0.21 * mo;
+    ctx.fillStyle = C.mouth;
+    ctx.beginPath();
+    ctx.ellipse(0, Y(F.mouth), mw, mh, 0, 0, 6.284);
+    ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 0.030; ctx.stroke();
+    /* 上の歯（白い帯を1本） */
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(0, Y(F.mouth), mw, mh, 0, 0, 6.284); ctx.clip();
+    ctx.fillStyle = C.white;
+    ctx.fillRect(-mw, Y(F.mouth) - mh, mw * 2, mh * 0.42);
+    ctx.restore();
+  }
+
+  /* --- 髪：平らな箱の角刈りパンチ（生え際 0.18 で水平に切る） --- */
+  var HL = F.hairline;
+  ctx.fillStyle = C.ink;
+  ctx.beginPath();
+  ctx.moveTo(-0.47, Y(HL));
+  ctx.lineTo(-0.47, Y(-0.01));
+  ctx.quadraticCurveTo(-0.47, Y(-0.045), -0.40, Y(-0.045));
+  ctx.lineTo(0.40, Y(-0.045));
+  ctx.quadraticCurveTo(0.47, Y(-0.045), 0.47, Y(-0.01));
+  ctx.lineTo(0.47, Y(HL + 0.02));
+  ctx.quadraticCurveTo(0, Y(HL - 0.02), -0.47, Y(HL));
+  ctx.closePath(); ctx.fill();
+  /* パンチの波（てっぺんの縁に4個。つるっとさせない） */
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 0.030;
+  ctx.beginPath();
+  ctx.moveTo(-0.34, Y(-0.005));
+  ctx.quadraticCurveTo(-0.28, Y(-0.055), -0.22, Y(-0.005));
+  ctx.quadraticCurveTo(-0.16, Y(-0.055), -0.10, Y(-0.005));
+  ctx.quadraticCurveTo(-0.04, Y(-0.055), 0.02, Y(-0.005));
+  ctx.quadraticCurveTo(0.08, Y(-0.055), 0.14, Y(-0.005));
+  ctx.quadraticCurveTo(0.20, Y(-0.055), 0.26, Y(-0.005));
+  ctx.quadraticCurveTo(0.32, Y(-0.055), 0.36, Y(-0.005));
+  ctx.stroke();
+  /* こめかみ下は刈り上げ（肌に近い色・幅0.06W）。もみあげは耳の手前で止める */
+  ctx.fillStyle = 'rgba(20,18,18,0.30)';
+  ctx.fillRect(-0.47, Y(HL), 0.07, 0.30);
+  ctx.fillRect( 0.40, Y(HL), 0.07, 0.30);
+
+  /* --- 眼鏡：黒縁の角丸。レンズは透明で目が透ける ---
+     上端は目の中心の 0.03W 上、下端は鼻の先（0.51）に来る。
+     つまりレンズの下っ側が鼻に乗る形になり、これが「鼻にちょいがけ」に見える。 */
+  var lensW = 0.36, lensH = F.nose - (F.eye - 0.03), topY = F.eye - 0.03;
+  var lens = function(cx){
+    ctx.beginPath();
+    var lx = cx - lensW / 2, ly = Y(topY);
+    var r = 0.05;
+    ctx.moveTo(lx + r, ly);
+    ctx.lineTo(lx + lensW - r, ly);
+    ctx.quadraticCurveTo(lx + lensW, ly, lx + lensW, ly + r);
+    ctx.lineTo(lx + lensW, ly + lensH - r);
+    ctx.quadraticCurveTo(lx + lensW, ly + lensH, lx + lensW - r, ly + lensH);
+    ctx.lineTo(lx + r, ly + lensH);
+    ctx.quadraticCurveTo(lx, ly + lensH, lx, ly + lensH - r);
+    ctx.lineTo(lx, ly + r);
+    ctx.quadraticCurveTo(lx, ly, lx + r, ly);
+    ctx.closePath();
+  };
+  ctx.fillStyle = 'rgba(255,255,255,0.34)';
+  lens(-0.22); ctx.fill();
+  lens( 0.22); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 0.030;
+  lens(-0.22); ctx.stroke();
+  lens( 0.22); ctx.stroke();
+  /* ブリッジとつる */
+  ctx.beginPath();
+  ctx.moveTo(-0.04, Y(topY + 0.05)); ctx.lineTo(0.04, Y(topY + 0.05));
+  ctx.moveTo(-0.40, Y(topY + 0.05)); ctx.lineTo(-0.50, Y(topY + 0.02));
+  ctx.moveTo( 0.40, Y(topY + 0.05)); ctx.lineTo( 0.50, Y(topY + 0.02));
+  ctx.stroke();
+
+  /* --- 手前の腕（袖もヒョウ柄。手だけ肌） --- */
+  var armR = limb(0.46, Y(1.52), 0.48, p.aR[0], 0.44, p.aR[1], 0.16, C.leo, 0.06);
+  hand(armR, C.skin);
+  ctx.restore();
+}
+const PICO_DRAW_SRC = drawPico.toString();
+
+/* ------------------------------------------------------------------
+   参考イラストを「素材として置く」ための差し込み口。
+   既定は enabled:false（＝drawPico の図形描画だけで動く）。
+   先生が手元の参考イラストを用意して pico-ref.png として置いたときだけ、
+   enabled を true にすると、WEBプロトのプロンプトが画像素材を使う指示に切り替わる。
+   ※ 実在の人物の写真・公式素材は置かない（README の IP 節と同じ規則）。
+   ------------------------------------------------------------------ */
+const PICO_ART = {
+  enabled: false,
+  path: 'assets/v2/pico/pico-ref.png',
+  note: '任意。置かない場合は drawPico の図形描画だけで動く（既定）。'
+};
+
+function picoArtBlock(plan){
+  if(!PICO_ART.enabled) return '';
+  return `【参考イラストを素材として使う（差し込み済み・この指示が優先）】
+・画像ファイルは ${PICO_ART.path} の1枚だけ。複製してポーズを増やさない。
+・<img src="${PICO_ART.path}" alt=""> を1つ置き、幅を HEAD × 3.4px に固定する（HEAD は TUNING.picoSize）。
+・縦横比を変えない。width と height を両方指定しない（片方だけにする）。
+・image-rendering: pixelated は使わない。ドット絵ではないため。
+・着地・ジャンプの潰れは、画像ではなく親要素に transform: scale(sx, sy) を掛ける
+  （transform-origin: bottom center）。画像自体の比率は触らない。
+・画像が読めなかったとき（onerror）は drawPico(ctx, ...) に自動で切り替える。
+  画像が無い状態でも最後まで遊べること。
+・この画像を見本として画面に常時表示しない。素材として置くだけ。`;
+}
+
+function picoSpecBlock(){
+  const L = [];
+  L.push('【体の比率】'); PICO_SPEC.body.forEach(x=>L.push('・'+x));
+  L.push('【顔の目盛り】'); PICO_SPEC.face.forEach(x=>L.push('・'+x));
+  L.push('【髪（角刈り）】'); PICO_SPEC.hair.forEach(x=>L.push('・'+x));
+  L.push('【眼鏡（ちょいがけ）】'); PICO_SPEC.glasses.forEach(x=>L.push('・'+x));
+  L.push('【口髭】・'+PICO_SPEC.mustache);
+  L.push('【口】・'+PICO_SPEC.mouth);
+  L.push('【ヒョウ柄】'); PICO_SPEC.leopard.forEach(x=>L.push('・'+x));
+  L.push('【色】・'+PICO_SPEC.colors);
+  L.push('【やってはいけない】・'+PICO_SPEC.ng);
+  return L.join('\n');
+}
+
+function poseBlock(plan){
+  return pickPoses(plan).map(p=>'・'+p.name+'：'+p.how).join('\n');
+}
+
+/* 1枚絵で取るポーズ（ジャンルで決まる・決定的） */
+function heroPose(plan){
+  const want = POSE_BY_GENRE[plan.genreId] || 'success';
+  return PICO_POSES.filter(p=>p.id===want)[0] || PICO_POSES[5];
+}
+
+/* 8状態ぶんのバリエーション。WEBプロトは状態で絵を差し替える */
+function poseAllBlock(){
+  return PICO_POSES.map(p=>'・'+p.id+'（'+p.name+'）：'+p.how).join('\n');
+}
+
+/* ------------------------------------------------------------------
+   「面白さ」の3点セット。
+   ここが空だと、どのジャンルを選んでも同じ説明文になり、
+   出力を読んだ学生には「どの案もつまらない」に見える。
+   ------------------------------------------------------------------ */
+const FUN_RULE = `「つまらない」の原因は、たいてい中身ではなく「触った瞬間に何が起きるか」が決まっていないことです。
+次の3つが決まっていれば、同じルールでも別のゲームになります。
+・0秒の1手＝起動して最初の1操作で、必ず何かが起きる（説明を読ませない）
+・山場＝1プレイに1回、スクショで伝わる画が来る
+・もう一回の理由＝失敗したときに「今のは惜しい、次はこうする」が1行で分かる`;
+
+function funBlock(plan){
+  return `【0秒の1手（触った瞬間に起きること）】
+${plan.kick || '（未設定）'}
+
+【山場（1プレイに1回、必ず来る画）】
+${plan.spike || '（未設定）'}
+
+【もう一回の理由（失敗したときに必ず1行で出す）】
+${plan.again || '（未設定）'}`;
+}
+
+/* ------------------------------------------------------------------
+   リズムだけの追加仕様。「音に合わせて叩く」だけでは、叩いている感じしかしない。
+   叩いた分だけ曲に層が増える形にして、手で曲を作っている状態にする。
+   ------------------------------------------------------------------ */
+const MUSIC_SPEC = `4本のレーンは、4つの楽器。叩いた分だけ曲に層が増える。
+・BPM128・4拍子。1小節＝1.875秒。60秒＝32小節ぶん。
+・ノーツは 1小節あたり各レーン1個（計4個）。8小節で1周（15秒）。
+・レーン1（左）：キック。低い「ドン」。音量 0 → 0.35 → 0.70 → 1.00 の4段階。
+・レーン2：スネア。乾いた「タン」。
+・レーン3：ベース。持続する低音「ボーン」。レーン3を叩くと、次の小節から鳴り続ける。
+・レーン4（右）：メロディ。高い「ピコッ」。4レーンそろうと、この音が一番上で鳴る。
+・叩くと、そのレーンの音量が1段階上がる。ミスすると、そのレーンだけ1段階下がる（0より下がらない）。
+・レーンが光るのは、その楽器が鳴った瞬間だけ。常時光らせない。
+・**山場＝最初に4レーンが同時に鳴った小節（1プレイに1回だけ）。**4レーンが同時に光り、4音が重なる。
+・**山場が必ず来る保証：**8小節の周の最後の小節で、層が0のレーンを自動で1に上げる。
+  だから一度も叩けなくても、遅くとも8小節目（15秒）に山場が来る。放置しても山場は見られる。
+・全レーンが3/3/3/3 になった小節は「パーフェクト」。山場とは別の演出で、画面を白く飛ばす（1プレイ1回）。
+  パーフェクトを狙わせない。山場と混ぜると、山場でなくなる。
+・スマホのスピーカーは200Hz以下がほぼ出ない。低い2音は、そのままだと聞こえない。
+  キックにはクリック音を、ベースには倍音を足して、 phone でも4レーンが聞き分けられるようにする。`;
+
+function musicBlock(plan){
+  if(!plan.music) return '';
+  return `【音楽の作り（このゲームの核。音は「鳴らす」のではなく「重ねる」）】
+${plan.music}
+${MUSIC_SPEC}`;
+}
+
+/* WEBプロト側だけに出す音楽ブロック（Canvas用の実装指示つき） */
+function musicWebBlock(plan){
+  if(!plan.music) return '';
+  return `\n【このゲームの音楽：音を「鳴らす」のではなく「重ねる」】\n`
+    + musicBlock(plan) + `\n`
+    + `・TUNING.music = { enabled: true, layers: [0,0,0,0], notesPerBarPerLane: 1, spikeFired: false } を持つ。\n`
+    + `・playNote(lane) を1つ作り、レーン番号で音色を切り替える。音色は OscillatorNode の type と音程だけで作る。\n`
+    + `  レーン1 kick＝sine 60Hz・減衰0.18秒／レーン2 snare＝square 240Hz・減衰0.09秒＋ノイズ\n`
+    + `  レーン3 bass＝triangle 110Hz・減衰0.35秒／レーン4 melody＝square 660Hz・減衰0.12秒\n`
+    + `・**低い2音はスマホで聞こえない。必ず補正する（実測：200Hz以下はほぼ出ない）**\n`
+    + `  キック：60Hzのサインに加えて、同じ時刻に square 900Hz・減衰0.02秒・音量0.12 を重ねる（アタックのクリック）。\n`
+    + `  ベース：triangle 110Hz に加えて、triangle 330Hz（第3倍音）を音量0.10で重ねる。\n`
+    + `  この2つを入れないと、phone では kick と bass が消えて「2レーンしか無い」ゲームになる。\n`
+    + `・音量段階は gain = [0, 0.10, 0.20, 0.32][layers[lane]]。0なら鳴らさない。\n`
+    + `・ヒットで layers[lane] を +1（最大3）、ミスで -1（最小0）。\n`
+    + `・**ノーツ密度：1小節あたり各レーン1個（計4個）。**BPM128・4拍子なので1小節＝1.875秒。\n`
+    + `  60秒＝32小節。8小節（15秒）で1周。密度を上げると層が0に戻らず、山場が来なくなるので上げない。\n`
+    + `・毎小節、layers が1以上のレーンだけを鳴らし続ける（鳴っている層が耳で分かる）。\n`
+    + `・**山場＝最初に4レーンが同時に鳴った小節。1プレイに1回だけ。**\n`
+    + `  spikeFired が false のとき、4レーン全部の layers が1以上になった小節で発火し、spikeFired = true にする。\n`
+    + `  発火した小節は、4レーンを同時に光らせ、4音を同時に鳴らし、画面を0.12秒だけ明るくする。\n`
+    + `・**山場が来ないまま終わらせない。**8小節の周の最後の小節で、layers が0のレーンを1に上げる。\n`
+    + `  一度も叩けなくても、遅くとも8小節目（15秒）に山場が来る。\n`
+    + `・全レーンが3/3/3/3 になった小節は「パーフェクト」として別演出（画面を白く飛ばす）。山場とは混ぜない。\n`
+    + `・AudioContext は1つだけ作る。開始時に resume する。`;
+}
+
 const LOCK = `この仕様は学生が自分で決めたもの。ジャンル・操作・勝敗条件・制限時間・画面構成を勝手に変えないこと。
 あなたの仕事は、この仕様を読みやすく整え、足りない説明（見た目・UI配置・演出のタイミング）を補うことだけ。
 別のゲームを提案しない。要素を足す場合も、この仕様の範囲内にとどめる。`;
@@ -81,6 +592,10 @@ ${head(plan)}
 【コアループ】
 ${plan.loop}
 
+【面白さの芯（ここを薄めない）】
+${FUN_RULE}
+${funBlock(plan)}
+
 【ピコ太郎である理由（変更しない）】
 ${plan.hookLabel}：${plan.impl}
 ${plan.whyShape}
@@ -104,28 +619,33 @@ ${absurdBlock(plan)}
 【出力形式】次の見出しのまま、各2〜4文で書いてください。前置き・後書き・別案は禁止。
 1. タイトル
 2. 一文コンセプト（誰が、何をして、どうなるか）
-3. コアループ（○する→○が起きる→もう一度したくなる）
+3. コアループ（○する→○が起きる→もう一度したくなる）※「0秒の1手」から書き始める
 4. 操作と画面
 5. 成功条件／失敗条件
-6. 30秒の遊びの流れ（時系列で5段階）
+6. 30秒の遊びの流れ（時系列で5段階）※山場はどこか
 7. 見せ場（1コマの説明）
 8. ピコ太郎の要素がどこに入っているか
 9. 気持ちよさ（ジュース）＝上の5つのうち、どれをどこで出すか。秒数まで書く
 10. 不条理の設計＝「無理やん」に思わせる要求／なぜ無理に見えるか／できそうな救い／合格の目安。この4つを必ず分けて書く
-11. 作る順番（最初に作る1つ→次に作る2つ）
-12. 削ってよいもの（時間が足りないときに捨てる順）※ジュースと救いは削らない。先に削るのは背景と敵の種類`;
+11. 作る順番（最初に作る1つ→次に作る2つ）※「0秒の1手」から作る
+12. 削ってよいもの（時間が足りないときに捨てる順）※ジュース・救い・0秒の1手は削らない。先に削るのは背景と敵の種類`;
 }
 
 /* ---------- 2. ゲームイメージ画像 ---------- */
 function promptImage(plan){
   return `16:9のゲームプレイ画面を1枚生成してください。完成したゲームのスクリーンショットとして見える画にします。
 
-【ピコ太郎の見た目（この4点は必ず守る）】
+【ピコ太郎の見た目（寸法まで守る。ここが「似る／似ない」を決める）】
 ① 髪：角刈りパンチ。
 ② 眼鏡：黒縁の普通の眼鏡（サングラスではない）。レンズ越しに目が見える。
 ③ 掛け方：鼻の上に「ちょいがけ」。レンズの上端が目の少し下に来る。
 ④ 髭：口の上の口髭（細く短い）。顎髭はない。
 補足：${PICO_LOOK}
+
+${picoSpecBlock()}
+
+【この1枚で取るポーズ】
+${heroPose(plan).name}：${heroPose(plan).how}
 
 【画風】
 フラットな2Dゲーム画面。太い黒線、ベタ塗り、影は1段だけ。勢いのあるイラスト。
@@ -143,6 +663,11 @@ function promptImage(plan){
 
 【必ず写すもの】
 ${plan.twistLabel}：${plan.twistOne}（プレイヤーが「今それを意識している」と分かる状態で描く）
+
+【この画面が「面白い」と分かる材料】
+・0秒の1手：${plan.kick}
+・山場：${plan.spike}
+→ 山場の画を描くこと。地味な通常状態を描かない。
 
 【不条理：「無理やん」が絵で分かるように描く（重要）】
 ${ABSURD_RULE}
@@ -210,12 +735,11 @@ ${rows}
 ・色は 黄 #FFD400 / 黒 #111111 / 白 #FFFFFF / 赤 #E23B2E / 緑 #2FA84F を基本に、必要な色だけ足す。
 ・輪郭は必ず黒。線をにじませない。
 
-【主人公の見た目（登場するマスだけ・この4点を守る）】
-① 髪：角刈りパンチ（サイドと後ろは刈り上げ、てっぺんだけ短く縮れて立ち上がる）。
-② 眼鏡：黒縁の普通の眼鏡（サングラスではない）。レンズ越しに目が見える。
-③ 掛け方：鼻の上に「ちょいがけ」。レンズの上端が目の少し下に来る。
-④ 髭：口の上の口髭（細く短い）。顎髭はない。
-衣装：黄色×黒のヒョウ柄。表情は真顔寄り。
+【主人公の見た目（登場するマスだけ。比率を守る）】
+① 髪：角刈りパンチ。② 眼鏡：黒縁（サングラスではない）。③ 鼻にちょいがけ。④ 口髭（顎髭なし）。
+衣装：黄色×黒のヒョウ柄。
+${picoSpecShort()}
+※ どのマスでも、目は細い横線のまま。口だけ開ける。表情を変えると別のキャラになる。
 
 【マスの大きさの目安（指定ではなく目安）】
 ・1マスはだいたい同じ大きさにする。
@@ -232,6 +756,11 @@ ${rows}
 ・成功のマスは、放射状の線＋星＋丸い粒を8〜12個。中心を白く飛ばす。
 ・失敗のマスは、赤いバツ＋灰色の煙。
 ・線は太く、色は明るく。絵の上で「気持ちいい」と分かること。
+
+【「面白い」が分かるマスを入れる（重要）】
+・0秒の1手：${plan.kick}
+・山場：${plan.spike}
+→ 山場の画を、素材の中でも一番目立つマスに入れる。地味な通常状態だけにしない。
 
 【不条理の手がかりになるマスを入れる】
 このゲームの「無理やん」＝${plan.absurd.demand}
@@ -275,6 +804,10 @@ ${plan.twistLabel}：${plan.twistOne}
 
 【見せ場】
 ${plan.show}
+
+【面白さの芯：「触った瞬間・山場・もう一回」の3つを必ず作る】
+${FUN_RULE}
+${funBlock(plan)}
 
 【不条理：この企画の笑いの芯（ここを薄めない）】
 ${ABSURD_RULE}
@@ -322,12 +855,45 @@ ${juiceBlock(plan)}
 
 【ピコ太郎の見た目（図形で描く）】
 ${PICO_LOOK}
+
+${picoSpecBlock()}
+
+【描画コード：これをそのまま使う（書き直さない・寸法を変えない）】
+以下は、上で指定した寸法どおりにキャラを描く完成済みの関数です。
+自分で一から描き起こさず、この drawPico をコピーして使ってください。
+ポーズ名を変えるだけで、同じ顔のまま12の状態を作れます。
+引数：ctx, x=足元のX, y=足元のY, s=頭の幅(px), pose, sx=横の潰れ倍率, sy=縦の伸び倍率
+
+\`\`\`js
+${PICO_DRAW_SRC}
+\`\`\`
+
+【この12ポーズを必ず使う（1つの絵を使い回さない）】
+${poseAllBlock()}
+
+【使うときのルール】
+・drawPico(ctx, px, py, HEAD, 'idle', 1, 1) のように呼ぶ。HEAD は TUNING.picoSize（例 34）。
+・着地で sx=1.2/sy=0.8、ジャンプで sx=0.85/sy=1.15 を渡す。0.18秒／0.12秒で (1,1) に戻す。
+・足元基準で拡大縮小されるので、py は地面のYのままでよい（中心基準にしない）。
+・顔（髪・眼鏡・口髭・目）は全ポーズ共通。変えるのは腕・脚・口の開きだけ。
+  目は細い横線のまま動かさない。口だけ開く。ここを崩すと別のキャラになる。
+・第8引数 dir に -1 を渡すと左右反転する。走り・すべり・のぞきこむで向きを散らす。
+${picoArtBlock(plan)}
+
 吹き出しを1つ作り、開始・成功・失敗・コンボの4場面だけ「Pen!」「Oh!」「Yeah!」を0.9秒表示する。歌詞は使わない。
 
 【音（Web Audioで合成・音源ファイルなし）】
 BPM128・4つ打ち・Am・8小節ループ。SEは6種（決定・取得・成功・失敗・コンボ・開始）。
 「Pen」は高い2音、「Apple」は丸い1音、「Pineapple」は少し濁った音にして、耳で区別できるようにする。
+**「耳で区別できる」を数値で担保する。次の周波数から動かさない（実測で区別を確認済み）：**
+・Pen＝square 880Hz と 1320Hz の2音を0.07秒ずらして鳴らす（上がる2音）。
+・Apple＝sine 440Hz の1音・減衰0.16秒（丸い）。
+・Pineapple＝sawtooth 330Hz に square 335Hz を重ねる・減衰0.20秒（うなりで濁る）。
+・決定＝square 660Hz 0.06秒／取得＝triangle 990Hz 0.08秒／成功＝sine 523→784→1047Hz の3音
+・失敗＝sawtooth 220→165Hz の下降 0.22秒／コンボ＝square 1047Hz を2回 0.05秒間隔／開始＝sine 392Hz 0.15秒
+・うなり（330Hz と 335Hz）は差が5Hz。濁りとして聞こえる下限付近なので、これより狭くしない。
 開始時にAudioContextをresumeする。
+${musicWebBlock(plan)}
 
 【出力】
 コード1つだけ。説明文は書かない。`;
@@ -377,6 +943,15 @@ function promptUnity(plan){
 【シーン構成（この3画面）】
 Title / Game / Result
 
+【面白さの芯（この3つが無いと、動くだけのゲームになる）】
+${FUN_RULE}
+${funBlock(plan)}
+
+【この3つの実装ルール】
+・起動して1回目の入力で、必ず何かが起きるようにする（説明パネルを先に出さない）。
+・山場の演出は1プレイ1回でよい。回数を増やすと、山場でなくなる。
+・失敗リザルトに「もう一回の理由」を1行で出す（上の文章をそのまま使ってよい）。
+${plan.music ? ('\n' + musicBlock(plan) + '\n') : ''}
 【Prefab（この単位で作る）】
 ${plan.assets.map(a=>'・'+a).join('\n')}
 
@@ -456,6 +1031,9 @@ function promptProposal(plan, st){
 ・見せ場：${plan.show}
 ・不条理（この企画の笑いの芯）：${plan.absurd.demand}
 ・でも、できそう：${plan.absurd.rescue}（合格の目安：${plan.absurd.rate}）
+・0秒の1手：${plan.kick}
+・山場：${plan.spike}
+・もう一回の理由：${plan.again}
 ・学生が好きなゲーム：${gameNames.length?gameNames.join('・'):'（未選択）'}
 
 【書く順番と内容】
@@ -490,5 +1068,10 @@ Markdownの見出しだけで構成。前置き・自己紹介・謝辞の定型
 }
 
 PK2.prompts = { promptPlan, promptImage, promptAssets, promptWeb, promptUnity, promptProposal,
-                juiceBlock, absurdBlock, PICO_LOOK, LOCK, JUICE_RULE, ABSURD_RULE };
+                juiceBlock, absurdBlock, PICO_LOOK, LOCK, JUICE_RULE, ABSURD_RULE,
+                FUN_RULE, funBlock, musicBlock, musicWebBlock,
+                PICO_SPEC, PICO_POSES, POSE_BY_GENRE, FACE_RULE,
+                PICO_ART, picoArtBlock,
+                picoSpecBlock, picoSpecShort, pickPoses, poseBlock, poseAllBlock, heroPose,
+                drawPico, PICO_DRAW_SRC };
 })();

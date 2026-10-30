@@ -312,10 +312,12 @@ function recommendGenres(gameIds, expId){
     /* 重みの設計：
        ・pref（好きなゲームの傾向）を最も重くする。ここが効かないと「選んだ意味」が消える。
        ・pop（友だちウケ）と hot（今年の人気）は、pref が並んだときの決め手。
-       → 何も選ばない人には pop/hot で「マリオ型・リズム」が自然に出る。 */
+       ・ただし pop/hot を強くしすぎると、好みと無関係な型が上位に来て「おすすめが偏る」。
+         → 実際にリズムが上位3位に50.4%入っていたので、pop/hot の寄与を下げた（2026-10-30 計測）。
+         好みが並んだときに「少し後押しする」程度に留めるのが正しい。 */
     let s = pref * 2.0;                      /* 好きなゲームの傾向（主役） */
-    s += (pop.pop - 1) * 0.65;               /* 友だちウケ（0 / 0.65 / 1.3） */
-    if(pop.hot) s += 0.45;                   /* 今年の学生人気 */
+    s += (pop.pop - 1) * 0.45;               /* 友だちウケ（0 / 0.45 / 0.90） */
+    if(pop.hot) s += 0.25;                   /* 今年の学生人気（決め手程度） */
     if(g.level > cap) s -= 0.5;              /* 経験を超えるものは下げる */
     if(g.level <= cap) s += 0.15;
 
@@ -457,6 +459,12 @@ function buildPlan(st){
     loop:genre.loop,
     show:SHOW[genre.id] || '',
     why:genre.why,
+    /* 「面白い」の3点セット。ここが空だと、どの案も同じ説明文になって
+       「ゲームがつまらない」に見える（2026-10-30 計測：22ジャンル全て空だった） */
+    kick:genre.kick || '',
+    spike:genre.spike || '',
+    again:genre.again || '',
+    music:genre.music || '',
     unity:genre.unity,
     impl:hook.impl,
     conceptHook:hook.concept,
