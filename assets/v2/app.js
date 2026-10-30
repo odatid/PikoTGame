@@ -494,13 +494,28 @@ function buildAll(P){
   };
 }
 
-/* ---------------- 描画実行 ---------------- */
-function render(){
+/* ---------------- 描画実行 ----------------
+   opts.keepScroll: 画面内の選択（ゲーム・ジャンル・乗せ方など）では
+   スクロール位置を保つ。設問をまたぐ移動のときだけ先頭へ戻す。
+   ---------------------------------------------------- */
+function render(opts){
+  const keep = !!(opts && opts.keepScroll);
+  const y = keep ? (window.scrollY || window.pageYOffset || 0) : 0;
+
   renderRail();
   const fn = R[state.step] || R.intro;
   app.innerHTML = fn();
   app.focus({preventScroll:true});
-  window.scrollTo({top:0, behavior:'smooth'});
+
+  if(keep){
+    /* 描画直後とレイアウト確定後の2回戻す（画像やフォントで高さが変わっても安定させる） */
+    window.scrollTo({top:y, behavior:'auto'});
+    requestAnimationFrame(()=>{ window.scrollTo({top:y, behavior:'auto'}); });
+  }else{
+    /* 設問をまたぐ移動は先頭へ。smoothだと長い距離で途中座標に残ることがあるので即時で戻す */
+    window.scrollTo({top:0, behavior:'auto'});
+    requestAnimationFrame(()=>{ window.scrollTo({top:0, behavior:'auto'}); });
+  }
   save();
 }
 
@@ -525,7 +540,7 @@ document.addEventListener('click', (e)=>{
     if(i>=0) state.games.splice(i,1);
     else if(state.games.length < 3) state.games.push(id);
     else { toast('3本までです。1本外してから選んでください'); return; }
-    render(); return;
+    render({keepScroll:true}); return;
   }
 
   if(el.dataset.genre){
@@ -534,7 +549,7 @@ document.addEventListener('click', (e)=>{
     const rec = PK2.plan.recommendHooks(state.genre);
     state.hook = (rec[0] && rec[0].hook.id) || state.hook;
     state.twist = (g && g.twist) || (PK2.TWISTS[0] && PK2.TWISTS[0].id);
-    render(); return;
+    render({keepScroll:true}); return;
   }
 
   /* 強烈におすすめの「これで進む」：選んでそのまま次の設問へ */
@@ -549,17 +564,17 @@ document.addEventListener('click', (e)=>{
     return;
   }
 
-  if(el.dataset.hook){ state.hook = el.dataset.hook; render(); return; }
-  if(el.dataset.twist){ state.twist = el.dataset.twist; render(); return; }
-  if(el.dataset.exp){ state.exp = el.dataset.exp; render(); return; }
-  if(el.dataset.goal){ state.goal = el.dataset.goal; render(); return; }
-  if(el.dataset.tab){ state.tab = el.dataset.tab; render(); return; }
+  if(el.dataset.hook){ state.hook = el.dataset.hook; render({keepScroll:true}); return; }
+  if(el.dataset.twist){ state.twist = el.dataset.twist; render({keepScroll:true}); return; }
+  if(el.dataset.exp){ state.exp = el.dataset.exp; render({keepScroll:true}); return; }
+  if(el.dataset.goal){ state.goal = el.dataset.goal; render({keepScroll:true}); return; }
+  if(el.dataset.tab){ state.tab = el.dataset.tab; render({keepScroll:true}); return; }
 
   if(el.dataset.check){
     state.check = state.check || {a:false,b:false,c:false};
     const k = el.dataset.check;
     state.check[k] = !state.check[k];
-    render(); return;
+    render({keepScroll:true}); return;
   }
 
   if(el.dataset.copy){
@@ -583,7 +598,7 @@ document.addEventListener('click', (e)=>{
 
   if(el.dataset.print){ window.print(); return; }
 
-  if(el.dataset.reset === 'games'){ state.games = []; render(); return; }
+  if(el.dataset.reset === 'games'){ state.games = []; render({keepScroll:true}); return; }
 
   /* 経験の設問は「答えずに進む」を許す。既定値に戻して案へ */
   if(el.dataset.reset === 'exp'){
