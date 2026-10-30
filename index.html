@@ -21,8 +21,16 @@
     </a>
     <div class="bar-right">
       <details class="verbox" id="verBox">
-        <summary class="ver" id="verChip">v2</summary>
-        <div class="verpanel" id="verPanel"></div>
+        <!-- 版の名前は「HTMLに直接」書く（JSで書き換えない）。
+             GitHub Pages は assets/*.js に max-age=600 を返すため、push直後は
+             古い app.js が動き続ける。JSで書き換える設計だと、その間ずっと
+             古い版名が出て「pushが失敗した」と誤解する（実測済み）。
+             ここに直接書けば、HTMLが新しければ必ず新しい版名が出る。
+             JSが読めたときは renderVersion() が PK2.VERSION.tag で上書きする。 -->
+        <summary class="ver" id="verChip">シチュエーション版</summary>
+        <!-- 中身も静的HTMLで1行だけ置く。JSが古いまま（キャッシュ中）でも
+             空のパネルにならない。JSが読めたら renderVersion() が全部差し替える。 -->
+        <div class="verpanel" id="verPanel"><div class="vp-date">この表示が出ていれば最新です</div></div>
       </details>
       <button class="icon-btn" id="btnPrint" type="button" title="印刷 / PDF保存">印刷</button>
       <button class="icon-btn" id="btnRestart" type="button" title="最初からやり直す">最初から</button>
