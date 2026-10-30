@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>ピコ太郎 描画確認（12ポーズ）</title>
+<style>
+  body{margin:0;background:#F3EEE4;font:13px/1.5 system-ui,sans-serif;color:#222}
+  h1{font-size:15px;margin:14px 18px 6px}
+  p.note{margin:0 18px 10px;color:#555;font-size:12px}
+  #grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 18px 24px}
+  .cell{background:#fff;border:1px solid #d8d2c6;border-radius:8px;padding:6px}
+  .cell b{display:block;font-size:11px;color:#7a3b00;margin-bottom:2px}
+  canvas{width:100%;height:auto;display:block}
+  #err{color:#b00;font:12px monospace;padding:0 18px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>ピコ太郎 — drawPico() 12ポーズ 実描画</h1>
+<p class="note">prompts.js の drawPico をそのまま実行した結果。外部画像は使っていない（図形のみ）。</p>
+<div id="err"></div>
+<div id="grid"></div>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+window.addEventListener('load', function(){
+  var errEl = document.getElementById('err');
+  if(!window.PK2 || !PK2.prompts || typeof PK2.prompts.drawPico !== 'function'){
+    errEl.textContent = 'drawPico が見つかりません（prompts.js の export を確認）';
+    return;
+  }
+  var grid = document.getElementById('grid');
+  var POSES = PK2.prompts.PICO_POSES;
+  var S = 40;               /* 頭の幅(px) */
+  var CW = S * 3.6, CH = S * 4.6;
+  var errs = 0;
+
+  POSES.forEach(function(p){
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML = '<b>' + p.id + '（' + p.name + '）</b>';
+    var cv = document.createElement('canvas');
+    var dpr = 2;
+    cv.width = CW * dpr; cv.height = CH * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, CW, CH);
+    try{
+      PK2.prompts.drawPico(ctx, CW / 2, CH - S * 0.45, S, p.id, 1, 1);
+    }catch(e){
+      errs++;
+      errEl.textContent += 'ERR ' + p.id + ': ' + e.message + '\n';
+    }
+    cell.appendChild(cv);
+    grid.appendChild(cell);
+  });
+
+  /* スケール誇張の確認（着地・ジャンプ） */
+  [['land',1.2,0.8],['jump',0.85,1.15]].forEach(function(t){
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML = '<b>' + t[0] + ' sx' + t[1] + '/sy' + t[2] + '</b>';
+    var cv = document.createElement('canvas');
+    var dpr = 2;
+    cv.width = CW * dpr; cv.height = CH * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, CW, CH);
+    try{ PK2.prompts.drawPico(ctx, CW/2, CH - S*0.45, S, t[0], t[1], t[2]); }
+    catch(e){ errs++; errEl.textContent += 'ERR squash: ' + e.message + '\n'; }
+    cell.appendChild(cv);
+    grid.appendChild(cell);
+  });
+
+  /* ゲーム内サイズ（HEAD=34px / 24px）で顔が崩れないか。WEBプロトはこの大きさで描く */
+  [34, 24].forEach(function(hs){
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML = '<b>実寸 HEAD=' + hs + 'px</b>';
+    var cv = document.createElement('canvas');
+    var dpr = 2;
+    cv.width = hs * 4 * dpr; cv.height = hs * 5 * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#181818'; ctx.fillRect(0, 0, hs * 4, hs * 5);
+    try{ PK2.prompts.drawPico(ctx, hs * 2, hs * 4.6, hs, 'idle', 1, 1); }
+    catch(e){ errs++; errEl.textContent += 'ERR small: ' + e.message + '\n'; }
+    cell.appendChild(cv);
+    grid.appendChild(cell);
+  });
+
+  console.log('POSES=' + POSES.length + ' ERRORS=' + errs);
+  console.log('SPEC_BLOCK_CHARS=' + PK2.prompts.picoSpecBlock().length);
+  console.log('SPEC_SHORT_CHARS=' + PK2.prompts.picoSpecShort().length);
+  console.log('DRAW_SRC_CHARS=' + PK2.prompts.PICO_DRAW_SRC.length);
+  console.log('DRAW_SRC_HAS_BACKTICK=' + (PK2.prompts.PICO_DRAW_SRC.indexOf('`') >= 0));
+  var pl = PK2.plan.buildPlan({games:['g_mario'],genre:'g_platx',hook:'h_pico',exp:'some',goal:'both'});
+  console.log('HERO_POSE(platx)=' + PK2.prompts.heroPose(pl).id);
+  var w = PK2.prompts.promptWeb(pl);
+  console.log('WEB_CHARS=' + w.length + ' WEB_HAS_DRAW=' + (w.indexOf('function drawPico') >= 0));
+  console.log('WEB_HAS_POSES=' + (w.indexOf('dance') >= 0) + ' WEB_UNDEF=' + (w.indexOf('undefined') >= 0));
+});
+</script>
+</body></html>

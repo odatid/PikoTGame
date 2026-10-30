@@ -138,10 +138,11 @@ tabIds.forEach(id=>{
   log('  TAB ' + id + ' chars=' + v.length + ' undefined=' + (v.indexOf('undefined')>=0) + ' NaN=' + (/\bNaN\b/.test(v)) + ' empty=' + (v.trim()===''));
 });
 
-/* copy handler が例外を出さないか */
+/* copy handler が例外を出さないか
+   「6種類をまとめてコピー」は要望により削除したので、存在しないことを確認する */
 try{
   document.querySelector('[data-copy]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
-  document.querySelector('[data-copyall]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  log('copyall button removed=' + (document.querySelector('[data-copyall]')===null));
   log('copy handlers fired=OK');
 }catch(e){ errors++; log('COPY_ERROR ' + e.message); }
 
@@ -273,6 +274,225 @@ PK2.GAMES.forEach(gm=>{
 });
 log('PICK_DIST=' + Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+':'+v).join(','));
 
+/* ---------- G. ジューシー（気持ちよさ） ---------- */
+log('--- G. ジューシー ---');
+const JUICE_KEYS = Object.keys(PK2.plan.JUICE);
+log('JUICE_KEYS=' + JUICE_KEYS.length);
+const juiceBad = JUICE_KEYS.filter(k=>{
+  const j = PK2.plan.JUICE[k];
+  return !j || !j.name || !j.when || !j.how || !j.tune || j.name.length<2 || j.how.length<8;
+});
+log('JUICE_BAD=' + juiceBad.length + (juiceBad.length?' → '+juiceBad.join(','):''));
+
+/* 全22ジャンル×16刺激のうち、必ず5つ選べているか／IDが辞書に無いか */
+let juiceMissing=0, juiceUnknown=0, juiceShort=0;
+const juiceIdSeen = {};
+PK2.GENRES.forEach(g=>{
+  PK2.TWISTS.forEach(t=>{
+    const P = PK2.plan.buildPlan({games:['g_mario'], genre:g.id, hook:'h_pico', twist:t.id, exp:'some', goal:'both'});
+    if(!P.juice || P.juice.length<5) juiceShort++;
+    (P.juice||[]).forEach(j=>{
+      if(!PK2.plan.JUICE[j.id]) juiceUnknown++;
+      juiceIdSeen[j.id] = (juiceIdSeen[j.id]||0)+1;
+      if(!j.name || !j.how || /undefined|NaN/.test(j.name+j.how)) juiceMissing++;
+    });
+  });
+});
+log('JUICE_SHORT_LT5=' + juiceShort + ' JUICE_UNKNOWN=' + juiceUnknown + ' JUICE_FIELD_BAD=' + juiceMissing);
+log('JUICE_USED=' + Object.keys(juiceIdSeen).length + '/' + JUICE_KEYS.length
+    + ' → ' + Object.entries(juiceIdSeen).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+':'+v).join(','));
+/* どのジャンルでも「つぶれ（スケール誇張）」が必ず入っているか */
+let noSquash=0;
+PK2.GENRES.forEach(g=>{
+  const P = PK2.plan.buildPlan({games:[], genre:g.id, hook:'h_pico', exp:'some', goal:'both'});
+  if(!(P.juice||[]).some(j=>j.id==='squash')) noSquash++;
+});
+log('GENRE_WITHOUT_SQUASH=' + noSquash + ' / ' + PK2.GENRES.length);
+
+/* 6つの出力すべてにジューシーの語が入っているか（企画書/画像/WEB/Unity/提案書） */
+const juiceWord = {plan:0, image:0, assets:0, web:0, unity:0, proposal:0};
+PK2.GENRES.forEach(g=>{
+  const st = {games:['g_mario'], genre:g.id, hook:'h_pico', exp:'some', goal:'both'};
+  const P = PK2.plan.buildPlan(st);
+  const outs = {
+    plan: PK2.prompts.promptPlan(P), image: PK2.prompts.promptImage(P),
+    assets: PK2.prompts.promptAssets(P), web: PK2.prompts.promptWeb(P),
+    unity: PK2.prompts.promptUnity(P), proposal: PK2.prompts.promptProposal(P, st)
+  };
+  Object.keys(outs).forEach(k=>{
+    const v = outs[k];
+    const has = (v.indexOf('気持ちよさ')>=0) || (v.indexOf('ジュース')>=0);
+    if(has) juiceWord[k]++;
+  });
+});
+log('JUICE_WORD_IN_OUTPUT=' + JSON.stringify(juiceWord) + ' (全' + PK2.GENRES.length + 'ジャンル)');
+const juiceWordBad = Object.entries(juiceWord).filter(([k,v])=>v<PK2.GENRES.length).map(([k,v])=>k+':'+v);
+log('JUICE_WORD_MISSING=' + juiceWordBad.length + (juiceWordBad.length?' → '+juiceWordBad.join(','):''));
+
+/* スケール誇張の数値が、WEBとUnityの両方に書かれているか */
+const Pw = PK2.plan.buildPlan({games:['g_mario'], genre:'g_platx', hook:'h_pico', exp:'some', goal:'both'});
+const webTxt = PK2.prompts.promptWeb(Pw), uniTxt = PK2.prompts.promptUnity(Pw);
+log('WEB_HAS_SCALE_EXAGGER=' + (/scale/i.test(webTxt) && /1\.2/.test(webTxt) && /0\.8/.test(webTxt)));
+log('UNITY_HAS_SCALE_EXAGGER=' + (/localScale/.test(uniTxt) && /1\.2/.test(uniTxt) && /0\.8/.test(uniTxt)));
+log('WEB_HAS_HITSTOP=' + /ヒットストップ/.test(webTxt) + ' UNITY_HAS_HITSTOP=' + /ヒットストップ/.test(uniTxt));
+log('WEB_HAS_JUICE_TOGGLE=' + /TUNING\.juice/.test(webTxt) + ' UNITY_HAS_JUICE_TOGGLE=' + /juiceEnabled/.test(uniTxt));
+
+/* 結果画面に5つの演出が実際に出ているか */
+click('[data-go="result"]');
+const juiceDt = document.querySelectorAll('.kv dt').length;
+log('result kv dt=' + juiceDt);
+log('result has juice block=' + (document.getElementById('app').textContent.indexOf('気持ちよさ（ジュース）')>=0));
+
+/* ---------- H. 2D素材シート（A4 1枚・12マス） ---------- */
+log('--- H. 2D素材シート ---');
+let sheetMin=99, sheetMax=0, sheetBad=0, oneImageOk=0;
+PK2.GENRES.forEach(g=>{
+  const P = PK2.plan.buildPlan({games:[], genre:g.id, hook:'h_pico', exp:'some', goal:'both'});
+  const n = (P.sheet||[]).length;
+  if(n<sheetMin) sheetMin=n;
+  if(n>sheetMax) sheetMax=n;
+  if(n!==12) sheetBad++;
+  const txt = PK2.prompts.promptAssets(P);
+  if(txt.indexOf('画像を1枚だけ')>=0 && txt.indexOf('1枚だけ作らない')<0) oneImageOk++;
+  if(/undefined|NaN/.test(txt)) sheetBad++;
+  /* 重複したマスが無いか */
+  const names = (P.sheet||[]).map(s=>s.name);
+  if(new Set(names).size !== names.length) sheetBad++;
+});
+log('SHEET_SLOTS min=' + sheetMin + ' max=' + sheetMax + ' bad=' + sheetBad + ' / ' + PK2.GENRES.length);
+log('SHEET_ONE_IMAGE_RULE=' + oneImageOk + ' / ' + PK2.GENRES.length);
+const sheetTxt = PK2.prompts.promptAssets(Pw);
+log('SHEET_HAS_FALLBACK=' + /簡単版/.test(sheetTxt) + ' HAS_NO_TEXT_RULE=' + /文字を書かない/.test(sheetTxt));
+log('SHEET_CHARS=' + sheetTxt.length);
+/* 12マスが順番に並んでいるか（01〜12が文字列に含まれる） */
+const nums = (Pw.sheet||[]).map(s=>String(s.n).padStart(2,'0'));
+log('SHEET_NUMBERS_OK=' + nums.every((v,i)=>v===String(i+1).padStart(2,'0')));
+
+/* ---------- I. 今回の改修（シチュエーション版） ---------- */
+log('--- I. シチュエーション版の検証 ---');
+
+/* I-1. 版の刻印 */
+const V = PK2.VERSION;
+log('VERSION_TAG=' + (V ? V.tag : 'MISSING') + ' POINTS=' + (V && V.points ? V.points.length : 0)
+    + ' DATE=' + (V ? V.date : ''));
+log('VERSION_CHIP_TEXT=' + (document.getElementById('verChip')||{textContent:'MISSING'}).textContent);
+log('VERSION_PANEL_FILLED=' + ((document.getElementById('verPanel')||{innerHTML:''}).innerHTML.indexOf('vp-tag')>=0));
+
+/* I-2. 味付けの16項目が、要望どおりの3区分になっているか */
+const wantHidden = ['連鎖で跳ねる','積み上がる','順番がある','見せてから出す','3段階の判定'];
+const wantAlways = ['障害物が増え続ける','最後に加速する','高得点ほど小さい的'];
+const wantPick   = ['足場が消える','立場が逆','動く障害物','敵か自分が分裂する','シューティング要素を足す',
+                    '読めない要素が1つ','ダメージに対して回復（挽回）要素を足す','偽物を混ぜて惑わせる'];
+log('TWIST_TOTAL=' + PK2.TWISTS.length + ' ALWAYS=' + PK2.TWIST_ALWAYS.length
+    + ' PICK=' + PK2.TWIST_PICK.length + ' HIDDEN=' + PK2.TWISTS.filter(t=>t.hidden).length);
+const lackAlways = wantAlways.filter(l=>!PK2.TWIST_ALWAYS.some(t=>t.label===l));
+const lackPick   = wantPick.filter(l=>!PK2.TWIST_PICK.some(t=>t.label===l));
+const shownHidden= PK2.TWIST_PICK.filter(t=>t.hidden||t.always).map(t=>t.label);
+log('ALWAYS_MISSING=' + lackAlways.length + (lackAlways.length?' → '+lackAlways.join(','):''));
+log('PICK_MISSING=' + lackPick.length + (lackPick.length?' → '+lackPick.join(','):''));
+log('HIDDEN_LEAKED_TO_PICK=' + shownHidden.length + (shownHidden.length?' → '+shownHidden.join(','):''));
+/* 選べない5項目は、TWISTS に残ったうえで hidden になっているか */
+const noHide = wantHidden.filter(l=>{ const t=PK2.TWISTS.find(x=>x.label===l); return !t || !t.hidden; });
+log('WANT_HIDDEN_NOT_HIDDEN=' + noHide.length + (noHide.length?' → '+noHide.join(','):''));
+/* 画面のチップ数が PICK と一致し、デフォルト3つが出ていないか */
+click('[data-go="result"]');
+const chipEls = [...document.querySelectorAll('[data-twist]')];
+const chipLabels = chipEls.map(b=>b.textContent.trim());
+log('RESULT_TWIST_CHIPS=' + chipEls.length + ' MATCH_PICK=' + (chipEls.length===PK2.TWIST_PICK.length));
+const defaultOnScreen = wantAlways.filter(l=>chipLabels.some(c=>c.indexOf(l)>=0));
+log('DEFAULT_SHOWN_ON_RESULT=' + defaultOnScreen.length + (defaultOnScreen.length?' → '+defaultOnScreen.join(','):''));
+log('RECOMMEND_MARKED=' + (document.querySelectorAll('[data-twist] .lv').length));
+
+/* I-3. 古い保存データがデフォルトを指していても、選べる物に戻るか */
+const oldPlan = PK2.plan.buildPlan({games:[], genre:'g_platx', hook:'h_pico', twist:'tw_dense', exp:'some', goal:'both'});
+log('OLD_TW_DENSE_FALLBACK=' + oldPlan.twistId + ' IS_PICK=' + PK2.TWIST_PICK.some(t=>t.id===oldPlan.twistId));
+
+/* I-4. シチュエーションが22ジャンル全部に出るか（6出力すべて） */
+let situMissing = {plan:0,image:0,assets:0,web:0,unity:0,proposal:0};
+let situEmpty = 0, situDupGenre = {};
+PK2.GENRES.forEach(g=>{
+  const st = {games:[], genre:g.id, hook:'h_pico', exp:'some', goal:'both'};
+  const P = PK2.plan.buildPlan(st);
+  if(!P.situTitle || !P.situGag || !P.situEnemy || !P.situGoal){ situEmpty++; return; }
+  if(/undefined|NaN/.test(P.situTitle+P.situGag+P.situEnemy+P.situGoal)) situEmpty++;
+  const outs = {
+    plan: PK2.prompts.promptPlan(P), image: PK2.prompts.promptImage(P),
+    assets: PK2.prompts.promptAssets(P), web: PK2.prompts.promptWeb(P),
+    unity: PK2.prompts.promptUnity(P), proposal: PK2.prompts.promptProposal(P, st)
+  };
+  Object.keys(outs).forEach(k=>{
+    /* タイトル画面に出す状況の1文が、そのまま入っているか */
+    if(outs[k].indexOf(P.situTitle)<0) situMissing[k]++;
+  });
+});
+log('SITU_FIELD_EMPTY=' + situEmpty + ' / ' + PK2.GENRES.length);
+log('SITU_MISSING_IN_OUTPUT=' + JSON.stringify(situMissing));
+log('SITU_ALL_OUTPUT_OK=' + (Object.values(situMissing).every(v=>v===0)));
+
+/* 何種類のシチュエーションが実際に使われるか（偏っていないか） */
+const usedSitu = {};
+PK2.GENRES.forEach(g=>{
+  ['h_pico','h_item','h_face'].forEach(h=>{
+    const P = PK2.plan.buildPlan({games:[], genre:g.id, hook:h, exp:'some', goal:'both'});
+    usedSitu[P.situId] = (usedSitu[P.situId]||0)+1;
+  });
+});
+log('SITU_DB=' + PK2.SITUATIONS.length + ' USED=' + Object.keys(usedSitu).length
+    + ' → ' + Object.entries(usedSitu).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+':'+v).join(','));
+
+/* 同じ入力なら同じシチュエーション（乱数なし） */
+const sA = PK2.plan.buildPlan({games:[], genre:'g_platx', hook:'h_pico', exp:'some', goal:'both'}).situId;
+const sB = PK2.plan.buildPlan({games:[], genre:'g_platx', hook:'h_pico', exp:'some', goal:'both'}).situId;
+log('SITU_DETERMINISTIC=' + (sA===sB) + ' (' + sA + ')');
+
+/* ピコ太郎の立場が4項目そろっているか */
+const ST = PK2.PICO_STANCE || {};
+log('STANCE_FIELDS=' + ['活動','希望','恐れ','ありたい'].filter(k=>ST[k] && ST[k].length>10).length + '/4');
+
+/* I-5. Startはふつう／最後に加速（展開表） */
+const ph = PK2.plan.PHASES;
+log('PHASES=' + ph.length + ' FIRST=' + ph[0].id + '(' + ph[0].speed + ')'
+    + ' LAST=' + ph[ph.length-1].id + '(' + ph[ph.length-1].speed + ')');
+log('PHASE_START_NORMAL=' + (ph[0].speed==='×1.00'));
+log('PHASE_SPEED_ASCENDS=' + (ph.map(p=>parseFloat(p.speed.replace('×',''))).every((v,i,a)=>i===0||v>=a[i-1])));
+log('PHASE_BPM_ASCENDS=' + (ph.map(p=>p.bpm).every((v,i,a)=>i===0||v>=a[i-1])));
+const Pesc = PK2.plan.buildPlan({games:[], genre:'g_platx', hook:'h_pico', exp:'some', goal:'both'});
+const escTxt = PK2.prompts.promptWeb(Pesc);
+log('WEB_HAS_ESCALATE=' + (escTxt.indexOf('START（ふつう）')>=0 || escTxt.indexOf('START')>=0));
+log('WEB_HAS_START_RULE=' + /Startで不条理を出さない/.test(escTxt));
+log('WEB_HAS_PHASE_TUNING=' + /TUNING\.phases/.test(escTxt));
+
+/* I-6. クネクネ＋キラキラ */
+log('WEB_HAS_WIGGLE=' + /3分割/.test(escTxt) + ' HAS_SNAKE=' + /ヘビ/.test(escTxt));
+log('WEB_HAS_IDLE_WIGGLE=' + /待機/.test(escTxt) + ' HAS_SPARKLE=' + /キラキラ/.test(escTxt));
+log('WEB_WIGGLE_USES_BPM=' + (/omega/.test(escTxt) && /bpm/.test(escTxt)));
+log('UNITY_HAS_WIGGLE=' + /3分割/.test(uniTxt));
+
+/* I-7. PPAP風ファミコンBGM */
+log('WEB_HAS_PPAP=' + /PPAP/.test(escTxt) + ' HAS_FAMICON=' + /ファミコン/.test(escTxt));
+log('WEB_BGM_HAS_4NOTES=' + (/Pen/.test(escTxt) && /Apple/.test(escTxt) && /Pineapple/.test(escTxt)));
+log('WEB_BGM_HAS_TEMPO_UP=' + /182/.test(escTxt) + ' HAS_PHONE_FIX=' + /200Hz/.test(escTxt));
+log('BGM_AND_GAME_SAME_BPM=' + /1つの BPM 変数/.test(escTxt));
+
+/* I-8. まとめてコピーが消えているか（出力画面） */
+click('[data-go="out"]');
+log('OUT_HAS_COPYALL_BUTTON=' + (document.querySelector('[data-copyall]')!==null));
+log('OUT_HAS_SINGLE_COPY=' + (document.querySelector('[data-copy]')!==null));
+log('OUT_TABS_STILL_6=' + (document.querySelectorAll('[data-tab]').length===6));
+
+/* I-9. 出力に undefined / NaN が混ざっていないか */
+const outAll = ['promptPlan','promptImage','promptAssets','promptWeb','promptUnity','promptProposal'];
+const badOut = [];
+outAll.forEach(fn=>{
+  const txt = fn==='promptPlan' ? PK2.prompts[fn](Pesc)
+            : fn==='promptProposal' ? PK2.prompts[fn](Pesc, {games:[]})
+            : PK2.prompts[fn](Pesc);
+  if(/undefined/.test(txt)) badOut.push(fn+':undefined');
+  if(/\bNaN\b/.test(txt)) badOut.push(fn+':NaN');
+});
+log('OUTPUT_BAD_TOKENS=' + badOut.length + (badOut.length?' → '+badOut.join(','):''));
+
+/* ---------- 結果 ---------- */
 log('--- 結果 ---');
 log(errors===0 ? 'JS_ERRORS=0 OK' : ('JS_ERRORS=' + errors + ' NG'));
 flush();

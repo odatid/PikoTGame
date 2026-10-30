@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>公開用JSの実サイズ計測</title>
+<style>
+  body{margin:0;background:#F3EEE4;font:13px/1.6 system-ui,sans-serif;color:#222;padding:14px 18px}
+  h1{font-size:15px;margin:0 0 8px}
+  table{border-collapse:collapse;margin-top:8px}
+  th,td{border:1px solid #cfc8ba;padding:4px 10px;font:12px/1.5 monospace;text-align:right}
+  th{background:#efe7d8}
+  td.name{text-align:left}
+  #err{color:#b00;font:12px monospace;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>公開用ファイルの実バイト数（fetch して測る）</h1>
+<div id="err"></div>
+<table id="t"><thead><tr><th>ファイル</th><th>バイト</th><th>行</th><th>タブ文字</th></tr></thead><tbody></tbody></table>
+
+<script>
+/* 公開物（index.html ＋ assets/v2/*）の実サイズを測る。
+   UTF-8 のバイト数を TextEncoder で数えるので、文字数と区別できる。 */
+(function(){
+  var FILES = ['index.html',
+               'assets/v2/genres.js',
+               'assets/v2/plan.js',
+               'assets/v2/prompts.js',
+               'assets/v2/app.js',
+               'assets/v2/style.css'];
+  var enc = new TextEncoder();
+  var tb = document.querySelector('#t tbody');
+  var err = document.getElementById('err');
+  var total = 0, done = 0;
+
+  FILES.forEach(function(f){
+    fetch('../' + f + '?cb=' + Date.now(), {cache:'no-store'})
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(txt){
+        var bytes = enc.encode(txt).length;
+        var lines = txt.split('\n').length;
+        var tabs = (txt.match(/\t/g) || []).length;
+        total += bytes;
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td class="name">' + f + '</td><td>' + bytes +
+                       '</td><td>' + lines + '</td><td>' + tabs + '</td>';
+        tb.appendChild(tr);
+        done++;
+        if(done === FILES.length) console.log('TOTAL_BYTES=' + total);
+        console.log('SIZE ' + f + ' = ' + bytes + ' bytes / ' + lines + ' lines / tabs=' + tabs);
+      })
+      .catch(function(e){
+        err.textContent += f + ': ' + e.message + '\n';
+        console.log('FETCH_FAIL ' + f + ' = ' + e.message);
+      });
+  });
+})();
+</script>
+</body></html>

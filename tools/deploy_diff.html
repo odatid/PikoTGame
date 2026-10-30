@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>公開中サイトとの差分（どのファイルを上げるか）</title>
+<style>
+  body{margin:0;background:#F3EEE4;font:13px/1.6 system-ui,sans-serif;color:#222;padding:14px 18px}
+  h1{font-size:15px;margin:0 0 4px}
+  p.note{margin:0 0 10px;color:#555;font-size:12px}
+  table{border-collapse:collapse;margin-top:6px}
+  th,td{border:1px solid #cfc8ba;padding:4px 10px;font:12px/1.5 monospace}
+  th{background:#efe7d8}
+  td.num{text-align:right}
+  .same{color:#0a6b2d}
+  .diff{color:#b0002a;font-weight:bold}
+  .unknown{color:#8a6d00}
+  #err{color:#b00;font:12px monospace;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>公開中（PikoTGame）と、こちらの実物の差分</h1>
+<p class="note">
+  同じパスを「ローカル」と「公開URL」の両方から取得して、本文が同一かバイト数が同じかを見る。
+  GitHub Pages が CORS を返さない場合は本文を読めないので、その旨を明示する（推測で「同じ」とは書かない）。
+</p>
+<div id="err"></div>
+<table id="t"><thead><tr>
+  <th>ファイル</th><th>ローカル</th><th>公開中</th><th>本文</th><th>判定</th>
+</tr></thead><tbody></tbody></table>
+
+<script>
+(function(){
+  var LIVE = 'https://odatid.github.io/PikoTGame/';
+  var FILES = ['index.html',
+               'assets/v2/genres.js',
+               'assets/v2/plan.js',
+               'assets/v2/prompts.js',
+               'assets/v2/app.js',
+               'assets/v2/style.css'];
+  var enc = new TextEncoder();
+  var tb = document.querySelector('#t tbody');
+  var errEl = document.getElementById('err');
+  var summary = {same:0, diff:0, unknown:0, update:[]};
+
+  function grab(url){
+    return fetch(url, {cache:'no-store'}).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    });
+  }
+
+  var jobs = FILES.map(function(f){
+    var cb = '?cb=' + Date.now() + Math.floor(Math.random()*1000);
+    return Promise.all([
+      grab('../' + f + cb).then(function(t){ return {ok:true, t:t}; })
+                          .catch(function(e){ return {ok:false, e:e.message}; }),
+      grab(LIVE + f + cb).then(function(t){ return {ok:true, t:t}; })
+                          .catch(function(e){ return {ok:false, e:e.message}; })
+    ]).then(function(r){
+      var loc = r[0], live = r[1];
+      var locB = loc.ok ? enc.encode(loc.t).length : null;
+      var liveB = live.ok ? enc.encode(live.t).length : null;
+      var verdict, cls, bodyText;
+
+      if(loc.ok && live.ok){
+        var same = (loc.t === live.t);
+        bodyText = same ? '同一' : '不一致';
+        if(same){ verdict = '更新不要'; cls = 'same'; summary.same++; }
+        else { verdict = '更新する'; cls = 'diff'; summary.diff++; summary.update.push(f); }
+      } else if(loc.ok && !live.ok){
+        bodyText = '公開側を読めない（' + live.e + '）';
+        verdict = '要確認'; cls = 'unknown'; summary.unknown++; summary.update.push(f);
+      } else if(!loc.ok && live.ok){
+        bodyText = 'ローカルを読めない（' + loc.e + '）';
+        verdict = '要確認'; cls = 'unknown'; summary.unknown++;
+      } else {
+        bodyText = '両方読めない';
+        verdict = '要確認'; cls = 'unknown'; summary.unknown++;
+      }
+
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + f + '</td>' +
+        '<td class="num">' + (locB === null ? '—' : locB.toLocaleString()) + '</td>' +
+        '<td class="num">' + (liveB === null ? '—' : liveB.toLocaleString()) + '</td>' +
+        '<td>' + bodyText + '</td>' +
+        '<td class="' + cls + '">' + verdict + '</td>';
+      tb.appendChild(tr);
+
+      console.log('DIFF ' + f + ' local=' + locB + ' live=' + liveB + ' verdict=' + verdict);
+      return {f:f, verdict:verdict};
+    });
+  });
+
+  Promise.all(jobs).then(function(){
+    console.log('SUMMARY same=' + summary.same + ' diff=' + summary.diff + ' unknown=' + summary.unknown);
+    console.log('UPDATE_LIST=' + (summary.update.join(',') || 'none'));
+    if(summary.unknown > 0){
+      errEl.textContent = '公開側を読めないファイルがあります（CORS の可能性）。' +
+        '"更新する" と出たものだけが、本文の不一致を確認できたファイルです。';
+    }
+    console.log('DONE');
+  });
+})();
+</script>
+</body></html>

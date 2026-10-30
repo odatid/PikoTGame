@@ -48,6 +48,23 @@ button{font-family:inherit}
 @media(max-width:620px){.wm-sub{display:none}}
 .bar-right{display:flex;align-items:center;gap:8px}
 .ver{font-family:var(--mono);font-size:.66rem;background:var(--yellow);color:var(--ink);padding:2px 7px;border-radius:3px;font-weight:600}
+/* 版の刻印：クリックで今回の目玉が出る。先生はこの表示だけで最新かを判断する */
+.verbox{position:relative}
+.verbox > summary{list-style:none;cursor:pointer;user-select:none}
+.verbox > summary::-webkit-details-marker{display:none}
+.verbox > summary::after{content:" ▾";font-size:.6rem}
+.verbox[open] > summary::after{content:" ▴"}
+.verpanel{
+  position:absolute;right:0;top:calc(100% + 8px);z-index:60;width:min(360px,86vw);
+  background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:8px;
+  box-shadow:0 8px 24px rgba(20,20,20,.28);padding:12px 14px;font-size:.76rem;line-height:1.6;
+}
+.verpanel .vp-tag{font-family:var(--mono);font-weight:600;font-size:.8rem;background:var(--yellow);border-radius:3px;padding:1px 6px}
+.verpanel .vp-main{margin:8px 0 6px;font-weight:700;font-size:.8rem}
+.verpanel ul{margin:0;padding-left:1.1em}
+.verpanel li{margin-bottom:2px}
+.verpanel .vp-date{margin-top:8px;color:var(--muted);font-family:var(--mono);font-size:.68rem}
+@media(max-width:620px){.verpanel{width:min(300px,92vw)}}
 .icon-btn{background:transparent;color:#fff;border:1px solid #555;border-radius:6px;padding:5px 10px;font-size:.72rem;cursor:pointer}
 .icon-btn:hover{background:#2b2b2b;border-color:#888}
 

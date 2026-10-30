@@ -315,8 +315,16 @@ R.result = () => {
   const alts = PK2.plan.alternatives(state, 4);
   const caution = PK2.plan.caution(P);
 
-  const twistChips = PK2.TWISTS.map(t=>`
-    <button type="button" class="choice ${state.twist===t.id?'on':''}" data-twist="${t.id}">${esc(t.label)}</button>`).join('');
+  /* 味付けは「選べる物」だけ出す。
+     tw_dense / tw_speed / tw_price は全ゲーム共通なので選択肢に出さない（app側で除外）。
+     意志薄弱な層のために、いちばん左に「おすすめ」を必ず1つ立てる。 */
+  const pickList = PK2.TWIST_PICK || [];
+  const recommended = pickList[0] || null;
+  const twistChips = pickList.map(t=>{
+    const isRec = recommended && t.id === recommended.id;
+    return `<button type="button" class="choice ${state.twist===t.id?'on':''}" data-twist="${t.id}">
+      ${isRec?'<span class="lv" style="background:var(--yellow);color:var(--ink);padding:0 4px;border-radius:3px;margin-right:4px">おすすめ</span>':''}${esc(t.label)}</button>`;
+  }).join('');
   const hookChips = PK2.HOOKS.map(h=>`
     <button type="button" class="choice ${state.hook===h.id?'on':''}" data-hook="${h.id}">${esc(h.label)}</button>`).join('');
 
@@ -356,8 +364,29 @@ R.result = () => {
     </div>
 
     <div class="showcase">
-      <div class="lab">他人に見せたくなる1コマ</div>
-      <p>${esc(P.show)}</p>
+      <div class="lab">タイトル画面に書く「どういう状況か」＝この企画のウリ</div>
+      <p style="font-weight:700">${esc(P.situTitle)}</p>
+      <p class="note" style="margin-top:6px">目的：${esc(P.situGoal)}</p>
+      <p class="note" style="margin-top:6px">画面に名前を書く物：<b>${esc(P.situEnemy)}</b></p>
+      <p class="note" style="margin-top:8px">${esc(P.situGag)}</p>
+      <p class="note" style="margin-top:8px">希望＝${esc(P.situWant)}／恐れ＝${esc(P.situFear)}。この2つを文章ではなく「物」で画面に置きます。</p>
+    </div>
+
+    <div class="block">
+      <h3>展開：Startはふつう → 不条理 → 最後に全員で加速</h3>
+      <p class="why">いきなり不条理にすると、プレイヤーは「壊れている」と判断して閉じます。Startで躓かせず、8秒目に「何か来る」とだけ予告し、後半に不条理を出します。最後はゲームもBGMも一緒に速くします。</p>
+      <dl class="kv">
+        ${P.phases.map(p=>`<dt>${esc(p.at)}</dt><dd><b>${esc(p.name)}</b>｜速さ ${esc(p.speed)}／BGM ${p.bpm}BPM／${esc(p.mob)}<br><span style="opacity:.8">${esc(p.note)}</span></dd>`).join('')}
+      </dl>
+      <p class="note">難易度の目標：慣れた人が10回に4〜5回クリア、初見が10回に1回。「慣れればギリギリ通る」に合わせてあります。速くするのは速度と数だけで、操作は増やしません。</p>
+    </div>
+
+    <div class="block">
+      <h3>全ゲーム共通の味付け（必ず入る・選ばせない）</h3>
+      <p class="why">この3つは全ゲームに必ず入るので、選択肢には出していません。</p>
+      <dl class="kv">
+        ${P.alwaysTwists.map(t=>`<dt>${esc(t.label)}</dt><dd>${esc(t.one)}<br><span style="opacity:.8">${esc(t.why)}</span></dd>`).join('')}
+      </dl>
     </div>
 
     <div class="block">
@@ -430,8 +459,9 @@ R.result = () => {
 
     <div class="block">
       <h3>味付けを変える（その場で差し替え）</h3>
-      <p class="note">刺激の1手</p>
+      <p class="note">刺激の1手（<b>迷ったら「おすすめ」のままで大丈夫です</b>）</p>
       <div class="chips">${twistChips}</div>
+      <p class="note" style="margin-top:6px">「障害物が増え続ける」「最後に加速する」「高得点ほど小さい的」は、どの案にも必ず入るので選択肢に出していません。</p>
       <p class="note" style="margin-top:12px">ピコ太郎の乗せ方</p>
       <div class="chips">${hookChips}</div>
       <p class="note" style="margin-top:12px">別のジャンルで作り直す</p>
@@ -494,7 +524,6 @@ R.out = () => {
     <textarea class="out" id="outText" readonly>${esc(cur)}</textarea>
     <div class="copyrow">
       <button class="btn sm" data-copy="${tab}">この1つをコピー</button>
-      <button class="btn sub sm" data-copyall="1">6種類をまとめてコピー</button>
       <button class="btn sub sm" data-print="1">印刷 / PDF</button>
     </div>
 
@@ -649,6 +678,25 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape' && state.step!=='intro'){ go('intro'); }
 });
 
+/* ---------------- 版の刻印 ----------------
+   ツール上部に「○○になった版」と、今回の目玉を小さく出す。
+   先生は「この表示が出ていれば最新」と確認するだけでよい（プッシュ確認が要らない）。
+   データは genres.js の PK2.VERSION に置く（この関数は表示だけ）。
+   ---------------------------------------------------- */
+function renderVersion(){
+  const V = PK2.VERSION;
+  const chip = document.getElementById('verChip');
+  const panel = document.getElementById('verPanel');
+  if(!V || !chip || !panel) return;
+  chip.textContent = V.tag;
+  chip.title = 'この表示が最新の目印です（' + V.date + '）';
+  panel.innerHTML = `
+    <span class="vp-tag">${esc(V.tag)}</span>
+    <div class="vp-main">${esc(V.main)}</div>
+    <ul>${(V.points||[]).map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
+    <div class="vp-date">${esc(V.date)}／この表示が出ていれば最新です</div>`;
+}
+
 /* ---------------- ヘッダーのボタン ---------------- */
 function bindHeader(){
   const p = document.getElementById('btnPrint');
@@ -672,6 +720,7 @@ function bindHeader(){
 /* ---------------- 起動 ---------------- */
 function boot(){
   load();
+  renderVersion();
   bindHeader();
   render();
   if(state.step==='intro'){ save(); }

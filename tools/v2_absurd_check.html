@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>PK//PROTO v2 不条理検証</title>
+<style>body{font:12px/1.6 monospace;background:#101010;color:#0f0;padding:14px;white-space:pre-wrap}
+h1{color:#ffd400;font-size:13px}</style>
+</head>
+<body>
+<h1>I. 不条理（無理やん → でも惜しい）</h1>
+<pre id="out">実行中...</pre>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+(function(){
+'use strict';
+const L=[], log=s=>{ L.push(s); console.log(s); };
+
+/* 辞書の網羅性：全22ジャンルぶんあるか */
+const A = PK2.plan.ABSURD;
+const gIds = PK2.GENRES.map(g=>g.id);
+const missing = gIds.filter(id=>!A[id]);
+const extra = Object.keys(A).filter(id=>gIds.indexOf(id)<0);
+log('ABSURD_ENTRIES=' + Object.keys(A).length + ' GENRES=' + gIds.length);
+log('ABSURD_MISSING=' + missing.length + (missing.length?' → '+missing.join(','):''));
+log('ABSURD_EXTRA=' + extra.length + (extra.length?' → '+extra.join(','):''));
+
+/* 5項目が全部埋まっているか */
+const FIELDS=['demand','impossible','rescue','laugh','rate'];
+const badField=[];
+gIds.forEach(id=>{
+  const a=A[id]; if(!a){ return; }
+  FIELDS.forEach(f=>{
+    if(!a[f] || String(a[f]).trim().length<6) badField.push(id+'.'+f);
+  });
+});
+log('ABSURD_FIELD_BAD=' + badField.length + (badField.length?' → '+badField.join(','):''));
+
+/* 乗せ方8種ぶんの接尾辞があるか */
+const hIds = PK2.HOOKS.map(h=>h.id);
+const hMissing = hIds.filter(id=>!PK2.plan.ABSURD_HOOK[id]);
+log('ABSURD_HOOK_ENTRIES=' + Object.keys(PK2.plan.ABSURD_HOOK).length + ' HOOKS=' + hIds.length);
+log('ABSURD_HOOK_MISSING=' + hMissing.length + (hMissing.length?' → '+hMissing.join(','):''));
+
+/* 全組み合わせ（22×8=176）で absurd が組み立てられるか */
+let combos=0, buildBad=0, undef=0;
+PK2.GENRES.forEach(g=>{
+  PK2.HOOKS.forEach(h=>{
+    combos++;
+    const P = PK2.plan.buildPlan({games:['g_mario'], genre:g.id, hook:h.id, exp:'some', goal:'both'});
+    const a = P.absurd;
+    if(!a) { buildBad++; return; }
+    FIELDS.forEach(f=>{ if(!a[f] || /undefined|NaN/.test(String(a[f]))) undef++; });
+    if(/undefined|NaN/.test(a.oneLine||'')) undef++;
+  });
+});
+log('COMBOS=' + combos + ' ABSURD_MISSING_ON_PLAN=' + buildBad + ' ABSURD_UNDEF=' + undef);
+/* 乗せ方で文言が変わるか（同一ジャンル・別の乗せ方で demand が違う） */
+const d1 = PK2.plan.buildPlan({games:[],genre:'g_platx',hook:'h_pico',exp:'some',goal:'both'}).absurd.demand;
+const d2 = PK2.plan.buildPlan({games:[],genre:'g_platx',hook:'h_leopard',exp:'some',goal:'both'}).absurd.demand;
+log('HOOK_CHANGES_DEMAND=' + (d1!==d2));
+log('  h_pico   → ' + d1);
+log('  h_leopard→ ' + d2);
+
+/* 決定性 */
+const a1 = JSON.stringify(PK2.plan.buildPlan({games:['g_mario'],genre:'g_rhythm',hook:'h_pose',exp:'some',goal:'both'}).absurd);
+const a2 = JSON.stringify(PK2.plan.buildPlan({games:['g_mario'],genre:'g_rhythm',hook:'h_pose',exp:'some',goal:'both'}).absurd);
+log('ABSURD_DETERMINISTIC=' + (a1===a2));
+
+/* 6出力すべてに不条理の記述が入っているか */
+const word={plan:0,image:0,assets:0,web:0,unity:0,proposal:0};
+PK2.GENRES.forEach(g=>{
+  const st={games:['g_mario'],genre:g.id,hook:'h_pico',exp:'some',goal:'both'};
+  const P=PK2.plan.buildPlan(st);
+  const outs={plan:PK2.prompts.promptPlan(P),image:PK2.prompts.promptImage(P),
+    assets:PK2.prompts.promptAssets(P),web:PK2.prompts.promptWeb(P),
+    unity:PK2.prompts.promptUnity(P),proposal:PK2.prompts.promptProposal(P,st)};
+  Object.keys(outs).forEach(k=>{ if(/不条理|無理やん/.test(outs[k])) word[k]++; });
+});
+log('ABSURD_WORD_IN_OUTPUT=' + JSON.stringify(word) + ' (全' + PK2.GENRES.length + ')');
+const wm = Object.entries(word).filter(([k,v])=>v<PK2.GENRES.length);
+log('ABSURD_WORD_MISSING=' + wm.length + (wm.length?' → '+wm.map(([k,v])=>k+':'+v).join(','):''));
+
+/* 「救い」が6出力中、WEB と Unity に必ず入っているか（実装指示として必要） */
+const Pw = PK2.plan.buildPlan({games:['g_mario'],genre:'g_platx',hook:'h_pico',exp:'some',goal:'both'});
+const web=PK2.prompts.promptWeb(Pw), uni=PK2.prompts.promptUnity(Pw);
+log('WEB_HAS_RESCUE=' + (web.indexOf(Pw.absurd.rescue)>=0));
+log('UNITY_HAS_RESCUE=' + (uni.indexOf(Pw.absurd.rescue)>=0));
+log('WEB_HAS_RESCUE_TUNING=' + /TUNING\.rescue/.test(web));
+log('UNITY_HAS_RESCUE_FIELD=' + /rescueAssist/.test(uni));
+log('WEB_HAS_FAIL_REASON=' + /失敗の理由/.test(web));
+log('UNITY_HAS_FAIL_REASON=' + /失敗したときの理由/.test(uni));
+/* 「操作を増やすな」が入っているか（無理なのは要求だけ、という原則） */
+log('WEB_KEEPS_INPUT=' + /操作は.*のまま増やさない/.test(web));
+log('UNITY_KEEPS_INPUT=' + /操作は.*のまま増やさない/.test(uni));
+log('PLAN_RULE_HAS_RIJIN=' + /理不尽/.test(PK2.prompts.ABSURD_RULE));
+
+/* 出力全体で undefined/NaN が出ていないか */
+let nandef=0;
+PK2.GENRES.forEach(g=>{
+  const st={games:['g_mario'],genre:g.id,hook:'h_pico',exp:'some',goal:'both'};
+  const P=PK2.plan.buildPlan(st);
+  [PK2.prompts.promptPlan(P),PK2.prompts.promptImage(P),PK2.prompts.promptAssets(P),
+   PK2.prompts.promptWeb(P),PK2.prompts.promptUnity(P),PK2.prompts.promptProposal(P,st)]
+   .forEach(v=>{ if(/undefined|NaN/.test(v)) nandef++; });
+});
+log('OUTPUT_UNDEF_OR_NAN=' + nandef);
+
+log('--- サンプル（マリオ型×ピコ太郎） ---');
+log('無理：' + Pw.absurd.demand);
+log('なぜ：' + Pw.absurd.impossible);
+log('救い：' + Pw.absurd.rescue);
+log('目安：' + Pw.absurd.rate);
+log('笑い：' + Pw.absurd.laugh);
+log('pitch：' + Pw.pitch);
+log('--- サンプル（リズム×ポーズ） ---');
+const Pr = PK2.plan.buildPlan({games:['g_taiko'],genre:'g_rhythm',hook:'h_pose',exp:'some',goal:'both'});
+log('無理：' + Pr.absurd.demand);
+log('救い：' + Pr.absurd.rescue);
+
+document.getElementById('out').textContent = L.join('\n');
+})();
+</script>
+</body></html>

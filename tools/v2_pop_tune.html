@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>リズムの重み候補の比較</title>
+<style>body{font:12px/1.5 monospace;background:#101010;color:#0f0;padding:14px;white-space:pre-wrap}
+h1{color:#ffd400;font-size:13px}</style></head>
+<body><h1>リズムの重み候補（top3内訳と1位の多様性）</h1><pre id="out">実行中...</pre>
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script>
+window.addEventListener('load', function(){
+const L=[],log=s=>{L.push(s);console.log(s);};
+const EXP=['beginner','some','used'];
+
+/* 現在の recommendGenres と同じ式を、係数だけ差し替えて再現する */
+function rank(gameIds, expId, popW, hotW, override){
+  const score={}; PK2.GENRES.forEach(g=>score[g.id]=0);
+  (gameIds||[]).forEach((gid,i)=>{
+    const gm=PK2.GAMES.find(x=>x.id===gid); if(!gm) return;
+    const w=i===0?1.0:0.6;
+    gm.genres.forEach((gen,j)=>{ if(score[gen]!==undefined) score[gen]+=w*(1-j*0.25); });
+  });
+  const cap=(PK2.EXP.find(e=>e.id===expId)||{}).cap||2;
+  return PK2.GENRES.map(g=>{
+    const pref=score[g.id]||0;
+    let p=PK2.popOf(g.id);
+    if(override && override[g.id]) p=Object.assign({},p,override[g.id]);
+    let s=pref*2.0 + (p.pop-1)*popW + (p.hot?hotW:0);
+    if(g.level>cap) s-=0.5;
+    if(g.level<=cap) s+=0.15;
+    return {id:g.id,score:s,pop:p};
+  }).sort((a,b)=> b.score-a.score || b.pop.pop-a.pop.pop || (b.pop.hot?1:0)-(a.pop.hot?1:0) || a.id.localeCompare(b.id));
+}
+
+function evaluate(label, popW, hotW, override){
+  let top3=0, top1=0, n=0, firsts={};
+  PK2.GAMES.forEach(gm=>{
+    EXP.forEach(exp=>{
+      const r=rank([gm.id],exp,popW,hotW,override); n++;
+      if(r.slice(0,3).some(x=>x.id==='g_rhythm')) top3++;
+      if(r[0].id==='g_rhythm') top1++;
+      firsts[r[0].id]=(firsts[r[0].id]||0)+1;
+    });
+  });
+  const kinds=Object.keys(firsts).length;
+  log(label.padEnd(34)
+    + ' リズムtop3=' + String(top3).padStart(3) + '/' + n + ' (' + (100*top3/n).toFixed(1) + '%)'
+    + '  1位=' + String(top1).padStart(2)
+    + '  1位の種類=' + kinds + '/22');
+  return {top3,top1,kinds};
+}
+
+log('--- 変更前（pop3/hot あり, 係数0.65/0.45） ---');
+evaluate('pop3 hot:true  0.65/0.45', 0.65, 0.45, {g_rhythm:{pop:3,hot:true}});
+
+log('');
+log('--- 候補（係数は現行の 0.45/0.25） ---');
+[
+  ['pop3 hot:false 0.45/0.25', 0.45,0.25,{g_rhythm:{pop:3,hot:false}}],
+  ['pop2 hot:true  0.45/0.25', 0.45,0.25,{g_rhythm:{pop:2,hot:true}}],
+  ['pop2 hot:false 0.45/0.25  ←現行', 0.45,0.25,{g_rhythm:{pop:2,hot:false}}],
+  ['pop3 hot:true  0.45/0.25  （POP据え置き）', 0.45,0.25,{g_rhythm:{pop:3,hot:true}}]
+].forEach(([lb,pw,hw,ov])=>evaluate(lb,pw,hw,ov));
+
+log('');
+log('--- 係数だけ下げる（POPは据え置き） ---');
+[[0.50,0.35],[0.55,0.35],[0.55,0.30]].forEach(([pw,hw])=>{
+  evaluate('pop3 hot:true  '+pw+'/'+hw, pw,hw,{g_rhythm:{pop:3,hot:true}});
+});
+
+log('');
+log('--- リズム好きがリズムを選ぶか（g_blue = g_gun と同居） ---');
+[['g_taiko'],['g_proseka'],['g_beat'],['g_gakumas'],['g_blue']].forEach(([g])=>{
+  const r=rank([g],'some',0.45,0.25,{g_rhythm:{pop:2,hot:false}});
+  log('  ' + g + ' → ' + r.slice(0,3).map(x=>x.id).join(' > '));
+});
+document.getElementById('out').textContent=L.join('\n');
+});
+</script></body></html>

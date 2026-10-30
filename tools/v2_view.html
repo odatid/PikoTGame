@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PK//PROTO v2 — ジューシー表示と素材シートの見た目確認</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/v2/style.css">
+<style>
+  body{background:#eceae2}
+  .vw-wrap{max-width:1120px;margin:0 auto;padding:16px 16px 60px}
+  .vw-lab{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.1em;color:#6b6b6b;margin:22px 0 6px}
+  .vw-frame{border:2px solid #141414;border-radius:12px;overflow:hidden;background:#fbf7ea}
+  .vw-frame .card{border:none;border-radius:0;box-shadow:none;margin:0}
+  .vw-frame .rail{display:none}
+  #hiddenApp{position:absolute;left:-99999px;top:0;width:1120px}
+</style>
+</head>
+<body>
+<div class="vw-wrap">
+  <p class="vw-lab">05 ゲーム案（気持ちよさ＝ジュースの5つが表示されているか）</p>
+  <div class="vw-frame" id="frameResult"></div>
+
+  <p class="vw-lab">06 出力：2D素材シート（A4 1枚・12マス）</p>
+  <div class="vw-frame" id="frameAssets"></div>
+</div>
+
+<div id="hiddenApp"><main id="app"></main><nav id="rail"></nav></div>
+<div class="toast" id="toast"></div>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script src="../assets/v2/app.js"></script>
+
+<script>
+window.addEventListener('load', function(){
+  var KEY='pkproto.v2', backup=null;
+  try{ backup=localStorage.getItem(KEY); }catch(e){}
+  var st=window.PK2app.state;
+
+  function set(o){
+    st.games=['g_suika','g_vamp']; st.genre='g_otoshimono'; st.hook='h_item';
+    st.twist='tw_grow'; st.exp='some'; st.goal='both'; st.tab='plan';
+    st.check={a:true,b:true,c:false};
+    Object.keys(o).forEach(function(k){ st[k]=o[k]; });
+  }
+
+  set({step:'result'});
+  window.PK2app.render();
+  document.getElementById('frameResult').innerHTML=document.getElementById('app').innerHTML;
+
+  set({step:'out', tab:'assets'});
+  window.PK2app.render();
+  document.getElementById('frameAssets').innerHTML=document.getElementById('app').innerHTML;
+
+  try{ if(backup===null) localStorage.removeItem(KEY); else localStorage.setItem(KEY,backup); }catch(e){}
+});
+</script>
+</body>
+</html>

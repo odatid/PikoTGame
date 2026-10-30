@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>PK//PROTO v2 ジューシー＆素材シート検証</title>
+<style>body{font:12px/1.6 monospace;background:#101010;color:#0f0;padding:14px;white-space:pre-wrap}
+h1{color:#ffd400;font-size:13px}</style>
+</head>
+<body>
+<h1>G. ジューシー／H. 2D素材シート（A4 1枚）</h1>
+<pre id="out">実行中...</pre>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+(function(){
+'use strict';
+const L=[], log=s=>{ L.push(s); console.log(s); };
+
+/* ---- G. ジューシー ---- */
+const KEYS = Object.keys(PK2.plan.JUICE);
+log('JUICE_KEYS=' + KEYS.length);
+const bad = KEYS.filter(k=>{ const j=PK2.plan.JUICE[k];
+  return !j || !j.name || !j.when || !j.how || !j.tune || j.name.length<2 || j.how.length<8; });
+log('JUICE_FIELD_BAD=' + bad.length + (bad.length?' → '+bad.join(','):''));
+
+let short=0, unknown=0, fieldBad=0, noSquash=0;
+const seen={};
+PK2.GENRES.forEach(g=>{
+  PK2.TWISTS.forEach(t=>{
+    const P = PK2.plan.buildPlan({games:['g_mario'], genre:g.id, hook:'h_pico', twist:t.id, exp:'some', goal:'both'});
+    const j = P.juice||[];
+    if(j.length<5) short++;
+    j.forEach(x=>{
+      if(!PK2.plan.JUICE[x.id]) unknown++;
+      seen[x.id]=(seen[x.id]||0)+1;
+      if(!x.name||!x.how||/undefined|NaN/.test(x.name+x.how)) fieldBad++;
+    });
+    if(!j.some(x=>x.id==='squash')) noSquash++;
+  });
+});
+log('COMBOS=' + (PK2.GENRES.length*PK2.TWISTS.length));
+log('JUICE_SHORT_LT5=' + short + ' UNKNOWN_ID=' + unknown + ' FIELD_BAD=' + fieldBad);
+log('COMBOS_WITHOUT_SQUASH=' + noSquash);
+log('JUICE_USED=' + Object.keys(seen).length + '/' + KEYS.length + ' → '
+    + Object.entries(seen).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+':'+v).join(','));
+
+/* 決定性：同じ入力で同じ5つ */
+const s1 = JSON.stringify(PK2.plan.buildPlan({games:['g_mario'],genre:'g_platx',hook:'h_pico',exp:'some',goal:'both'}).juice);
+const s2 = JSON.stringify(PK2.plan.buildPlan({games:['g_mario'],genre:'g_platx',hook:'h_pico',exp:'some',goal:'both'}).juice);
+log('JUICE_DETERMINISTIC=' + (s1===s2));
+
+/* 6出力すべてにジューシーの語が入っているか */
+const word={plan:0,image:0,assets:0,web:0,unity:0,proposal:0};
+PK2.GENRES.forEach(g=>{
+  const st={games:['g_mario'],genre:g.id,hook:'h_pico',exp:'some',goal:'both'};
+  const P=PK2.plan.buildPlan(st);
+  const outs={plan:PK2.prompts.promptPlan(P),image:PK2.prompts.promptImage(P),
+    assets:PK2.prompts.promptAssets(P),web:PK2.prompts.promptWeb(P),
+    unity:PK2.prompts.promptUnity(P),proposal:PK2.prompts.promptProposal(P,st)};
+  Object.keys(outs).forEach(k=>{ if(/気持ちよさ|ジュース/.test(outs[k])) word[k]++; });
+});
+log('JUICE_WORD_IN_OUTPUT=' + JSON.stringify(word) + ' (全' + PK2.GENRES.length + ')');
+const miss = Object.entries(word).filter(([k,v])=>v<PK2.GENRES.length);
+log('JUICE_WORD_MISSING=' + miss.length + (miss.length?' → '+miss.map(([k,v])=>k+':'+v).join(','):''));
+
+/* スケール誇張・ヒットストップ・ON/OFFが両方に入っているか */
+const Pw = PK2.plan.buildPlan({games:['g_mario'],genre:'g_platx',hook:'h_pico',exp:'some',goal:'both'});
+const web=PK2.prompts.promptWeb(Pw), uni=PK2.prompts.promptUnity(Pw);
+log('WEB_SCALE=' + (/ctx\.scale/.test(web) && /1\.2/.test(web) && /0\.8/.test(web)));
+log('UNITY_SCALE=' + (/localScale/.test(uni) && /1\.2/.test(uni) && /0\.8/.test(uni)));
+log('WEB_HITSTOP=' + /ヒットストップ/.test(web) + ' UNITY_HITSTOP=' + /ヒットストップ/.test(uni));
+log('WEB_TOGGLE=' + /TUNING\.juice/.test(web) + ' UNITY_TOGGLE=' + /juiceEnabled/.test(uni));
+log('WEB_NO_UNDEF=' + !/undefined|NaN/.test(web) + ' UNITY_NO_UNDEF=' + !/undefined|NaN/.test(uni));
+
+/* ---- H. 素材シート ---- */
+let min=99, max=0, notTwelve=0, dup=0, undef=0, oneImg=0;
+PK2.GENRES.forEach(g=>{
+  const P = PK2.plan.buildPlan({games:[],genre:g.id,hook:'h_pico',exp:'some',goal:'both'});
+  const n=(P.sheet||[]).length;
+  min=Math.min(min,n); max=Math.max(max,n);
+  if(n!==12) notTwelve++;
+  const names=(P.sheet||[]).map(s=>s.name);
+  if(new Set(names).size!==names.length) dup++;
+  const txt=PK2.prompts.promptAssets(P);
+  if(/undefined|NaN/.test(txt)) undef++;
+  /* 「画像は1枚だけ」が冒頭に入っているか（＝分割しない指示） */
+  if(txt.indexOf('画像を1枚だけ作ってください')>=0) oneImg++;
+});
+log('SHEET_SLOTS min=' + min + ' max=' + max + ' notTwelve=' + notTwelve + ' dup=' + dup + ' undef=' + undef);
+log('SHEET_ONE_IMAGE_RULE=' + oneImg + '/' + PK2.GENRES.length);
+const st=PK2.prompts.promptAssets(Pw);
+log('SHEET_CHARS=' + st.length);
+log('SHEET_HAS_FALLBACK=' + /簡単版/.test(st));
+log('SHEET_HAS_NO_TEXT=' + /文字を書かない/.test(st));
+log('SHEET_HAS_GRID_3x4=' + (/3行×4列/.test(st)));
+log('SHEET_NO_TRANSPARENT_DEMAND=' + (st.indexOf('背景を透明にしてください')<0));
+const nums=(Pw.sheet||[]).map(s=>s.n);
+log('SHEET_NUMBERS_SEQ=' + nums.every((v,i)=>v===i+1));
+log('SHEET_SAMPLE=' + (Pw.sheet||[]).slice(0,4).map(s=>s.n+':'+s.name).join(' | '));
+
+/* 画面（result）に5つ出ているか */
+log('--- 画面 ---');
+log('PLAN_HAS_JUICE_SECTION=' + /気持ちよさ/.test(PK2.prompts.promptPlan(Pw)));
+document.getElementById('out').textContent = L.join('\n');
+})();
+</script>
+</body></html>

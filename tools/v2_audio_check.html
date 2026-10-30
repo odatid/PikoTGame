@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>リズム仕様の実測（音・層・埋め込みコード）</title>
+<style>
+  body{margin:0;background:#F3EEE4;font:13px/1.6 system-ui,sans-serif;color:#222;padding:14px 18px}
+  h1{font-size:15px;margin:0 0 4px}
+  h2{font-size:13px;margin:16px 0 4px;color:#7a3b00}
+  p.note{margin:0 0 8px;color:#555;font-size:12px}
+  table{border-collapse:collapse;margin-top:6px}
+  th,td{border:1px solid #cfc8ba;padding:3px 9px;font:12px/1.5 monospace}
+  th{background:#efe7d8}
+  td.num{text-align:right}
+  .ok{color:#0a6b2d;font-weight:bold}
+  .bad{color:#b0002a;font-weight:bold}
+  #err{color:#b00;font:12px monospace;white-space:pre-wrap}
+  pre{margin:0;font:11px/1.5 monospace;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>リズム仕様の実測 —「4レーン＝4楽器」は本当に成立するか</h1>
+<p class="note">
+  仕様（プロンプトに書いた数値）を、実際に Web Audio で合成して測る。
+  「耳で区別できる」「叩くほど層が増える」を、数値で確かめる。
+</p>
+<div id="err"></div>
+<div id="out"></div>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+window.addEventListener('load', function(){
+  var errEl = document.getElementById('err');
+  var out = document.getElementById('out');
+  function sec(t){ var h = document.createElement('h2'); h.textContent = t; out.appendChild(h); }
+  function txt(s){ var p = document.createElement('p'); p.className='note'; p.innerHTML = s; out.appendChild(p); }
+  function table(headers, rows){
+    var t = document.createElement('table');
+    var thead = document.createElement('tr');
+    headers.forEach(function(h){ var th=document.createElement('th'); th.textContent=h; thead.appendChild(th); });
+    t.appendChild(thead);
+    rows.forEach(function(r){
+      var tr = document.createElement('tr');
+      r.forEach(function(c, i){
+        var td = document.createElement('td');
+        td.textContent = c.v !== undefined ? c.v : c;
+        if(c.cls) td.className = c.cls;
+        if(i > 0) td.className += ' num';
+        tr.appendChild(td);
+      });
+      t.appendChild(tr);
+    });
+    out.appendChild(t);
+    return t;
+  }
+
+  if(!window.PK2 || !PK2.prompts){ errEl.textContent='PK2.prompts が読めません'; return; }
+  var P = PK2.prompts;
+  var plan = PK2.plan.buildPlan({games:['g_taiko'],genre:'g_rhythm',hook:'h_pose',exp:'some',goal:'both'});
+  var web = P.promptWeb(plan);
+
+  /* ============================================================
+     A. プロンプトに埋め込んだ描画コードが、本当に単体で動くか
+     ============================================================ */
+  sec('A. 埋め込みコード（プロンプト本文から取り出して実行）');
+  var m = web.match(/```js\n([\s\S]*?)```/);
+  var embedded = m ? m[1] : '';
+  var sameAsExport = (embedded.trim() === String(P.PICO_DRAW_SRC).trim());
+  var syntaxOk = false, runOk = false, runErr = '';
+  var fn = null;
+  try{ fn = eval('(' + embedded + ')'); syntaxOk = true; }
+  catch(e){ runErr = e.message; }
+  if(syntaxOk && typeof fn === 'function'){
+    try{
+      var cv = document.createElement('canvas'); cv.width=120; cv.height=200;
+      var cx = cv.getContext('2d');
+      fn(cx, 60, 190, 40, 'idle', 1, 1);
+      fn(cx, 60, 190, 40, 'success', 1.2, 0.8);
+      runOk = true;
+    }catch(e){ runErr = e.message; }
+  }
+  var externals = [];
+  ['JSON','window','document','PK2','require'].forEach(function(k){
+    if(new RegExp('\\b' + k + '\\b').test(embedded)) externals.push(k);
+  });
+  table(['検査','実測','判定'], [
+    ['プロンプト本文のコードブロック', embedded ? '抽出OK（' + embedded.length + '字）' : '抽出できず',
+      {v: embedded ? 'OK' : 'NG', cls: embedded ? 'ok' : 'bad'}],
+    ['export と本文が同一', String(sameAsExport), {v: sameAsExport ? 'OK':'NG', cls: sameAsExport?'ok':'bad'}],
+    ['構文として評価できる', String(syntaxOk), {v: syntaxOk?'OK':'NG', cls: syntaxOk?'ok':'bad'}],
+    ['実際に2ポーズ描けた', String(runOk) + (runErr ? '（' + runErr + '）' : ''), {v: runOk?'OK':'NG', cls: runOk?'ok':'bad'}],
+    ['外部変数の参照', externals.length ? externals.join(',') : 'なし', {v: externals.length?'NG':'OK', cls: externals.length?'bad':'ok'}]
+  ]);
+  console.log('EMBEDDED_CHARS=' + embedded.length);
+  console.log('EMBEDDED_SAME_AS_EXPORT=' + sameAsExport);
+  console.log('EMBEDDED_SYNTAX_OK=' + syntaxOk);
+  console.log('EMBEDDED_RUN_OK=' + runOk + (runErr ? ' ERR=' + runErr : ''));
+  console.log('EMBEDDED_EXTERNALS=' + (externals.length ? externals.join(',') : 'none'));
+
+  /* ============================================================
+     B. 4レーンの音を実際に合成して、耳で区別できるか測る
+     仕様の数値（プロンプトに書いたもの）をそのまま使う
+     ============================================================ */
+  sec('B. 4レーンの音を合成して測る');
+  var LANES = [
+    {id:1, name:'キック',   type:'sine',     freq:60,  decay:0.18},
+    {id:2, name:'スネア',   type:'square',   freq:240, decay:0.09},
+    {id:3, name:'ベース',   type:'triangle', freq:110, decay:0.35},
+    {id:4, name:'メロディ', type:'square',   freq:660, decay:0.12}
+  ];
+  var SR = 44100, DUR = 0.8;
+
+  function renderLane(L){
+    return new Promise(function(resolve){
+      var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if(!OAC) return resolve(null);
+      var ctx = new OAC(1, Math.floor(SR * DUR), SR);
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.type = L.type;
+      osc.frequency.value = L.freq;
+      g.gain.setValueAtTime(0.32, 0);
+      g.gain.exponentialRampToValueAtTime(0.0001, L.decay);
+      g.gain.setValueAtTime(0.0001, DUR);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(0); osc.stop(DUR);
+      ctx.startRendering().then(function(buf){
+        resolve(buf.getChannelData(0));
+      }).catch(function(){ resolve(null); });
+    });
+  }
+
+  /* 素朴な DFT でピーク周波数を探す（40〜1600Hz を 4Hz 刻み） */
+  function analyse(data){
+    var N = 8192, start = 64;
+    var seg = new Float32Array(N);
+    for(var i = 0; i < N; i++) seg[i] = data[start + i] || 0;
+    function magAt(f){
+      var w = 2 * Math.PI * f / SR, re = 0, im = 0;
+      for(var n = 0; n < N; n++){
+        var a = w * n;
+        re += seg[n] * Math.cos(a);
+        im -= seg[n] * Math.sin(a);
+      }
+      return Math.sqrt(re*re + im*im) / N;
+    }
+    var bestF = 0, bestM = -1;
+    for(var f = 40; f <= 1600; f += 4){
+      var mg = magAt(f);
+      if(mg > bestM){ bestM = mg; bestF = f; }
+    }
+    /* 倍音の強さ（第3倍音/基音）で sine / triangle / square を見分ける */
+    var h1 = magAt(bestF), h2 = magAt(bestF * 2), h3 = magAt(bestF * 3);
+    /* 減衰：128サンプルごとの RMS が最大の 10%（-20dB）を切る時刻 */
+    var blk = 128, peak = 0, t20 = null;
+    var rms = [];
+    for(var b = 0; b + blk <= data.length; b += blk){
+      var s = 0;
+      for(var k = 0; k < blk; k++){ var v = data[b+k]; s += v*v; }
+      var r = Math.sqrt(s / blk);
+      rms.push(r);
+      if(r > peak) peak = r;
+    }
+    for(var b2 = 0; b2 < rms.length; b2++){
+      if(rms[b2] < peak * 0.1){ t20 = b2 * blk / SR; break; }
+    }
+    return {peakF:bestF, h1:h1, h2:h2, h3:h3, t20:t20, peakRms:peak};
+  }
+
+  var results = [];
+  (async function(){
+    for(var i2 = 0; i2 < LANES.length; i2++){
+      var L = LANES[i2];
+      var data = await renderLane(L);
+      if(!data){ errEl.textContent = 'OfflineAudioContext が使えません'; return; }
+      var a = analyse(data);
+      results.push({lane:L, a:a});
+    }
+
+    var rows = results.map(function(r){
+      var a = r.a;
+      return [
+        'レーン' + r.lane.id + ' ' + r.lane.name,
+        r.lane.type + ' ' + r.lane.freq + 'Hz',
+        a.peakF + 'Hz',
+        (a.h3 / (a.h1 || 1)).toFixed(3),
+        a.t20 === null ? '—' : a.t20.toFixed(3) + 's',
+        a.peakRms.toFixed(4)
+      ];
+    });
+    table(['レーン','仕様','実測ピーク周波数','第3倍音/基音','-20dBまで','ピークRMS'], rows);
+
+    results.forEach(function(r){
+      console.log('LANE' + r.lane.id + ' spec=' + r.lane.type + '/' + r.lane.freq +
+                  'Hz decay=' + r.lane.decay +
+                  ' measuredPeak=' + r.a.peakF + 'Hz h3ratio=' + (r.a.h3/(r.a.h1||1)).toFixed(3) +
+                  ' t20=' + (r.a.t20===null?'null':r.a.t20.toFixed(3)) +
+                  ' rms=' + r.a.peakRms.toFixed(4));
+    });
+
+    /* ペアごとに「区別できるか」を測る */
+    var pairs = [];
+    for(var x = 0; x < results.length; x++){
+      for(var y = x+1; y < results.length; y++){
+        var A = results[x], B = results[y];
+        var f1 = A.a.peakF, f2 = B.a.peakF;
+        var ratio = Math.max(f1,f2) / Math.min(f1,f2);
+        var harmDiff = Math.abs((A.a.h3/(A.a.h1||1)) - (B.a.h3/(B.a.h1||1)));
+        var t1 = A.a.t20 === null ? 0 : A.a.t20, t2 = B.a.t20 === null ? 0 : B.a.t20;
+        var decayDiff = Math.abs(t1 - t2);
+        /* 区別できる条件：周波数が1.4倍以上離れている、または倍音構成か減衰がはっきり違う */
+        var sep = (ratio >= 1.4) || (harmDiff >= 0.10) || (decayDiff >= 0.06);
+        pairs.push([A.lane.name + ' × ' + B.lane.name,
+                    ratio.toFixed(2) + '倍',
+                    harmDiff.toFixed(3),
+                    decayDiff.toFixed(3) + 's',
+                    {v: sep ? '区別可' : '近い', cls: sep ? 'ok' : 'bad'}]);
+      }
+    }
+    table(['ペア','周波数比','倍音構成の差','減衰の差','判定'], pairs);
+
+    var lowCount = results.filter(function(r){ return r.a.peakF < 200; }).length;
+    txt('<b>スマホのスピーカー（200Hz以下はほぼ出ない）に該当するレーン：' + lowCount + '本</b>');
+    console.log('LANES_BELOW_200HZ=' + lowCount);
+    console.log('PAIRS_INDISTINCT=' + pairs.filter(function(p){ return p[4].cls==='bad'; }).length);
+
+    /* ============================================================
+       C. SE（Pen / Apple / Pineapple）の周波数が仕様にあるか
+       ============================================================ */
+    sec('C. SE「耳で区別できる」の根拠がプロンプトにあるか');
+    /* 1行だけ見ると、周波数を別行に書いた場合に拾えない。
+       WEBプロンプト全文から、担保になる数値を探す。 */
+    var SE_TOKENS = ['880', '1320', '440', '330', '335', '523', '1047'];
+    var seFound = SE_TOKENS.filter(function(t){ return web.indexOf(t) >= 0; });
+    txt('WEBプロンプト全文に含まれる SE の周波数：<b>' +
+        (seFound.length ? seFound.join(' / ') + ' Hz' : 'なし') + '</b>' +
+        '<br>（Pen=880・1320／Apple=440／Pineapple=330＋335／成功=523・1047）');
+    table(['検査','実測','判定'], [
+      ['SEの周波数が明記されている', seFound.length + ' / ' + SE_TOKENS.length + ' 個',
+        {v: seFound.length === SE_TOKENS.length ? 'OK' : (seFound.length ? '一部' : 'NG'),
+         cls: seFound.length === SE_TOKENS.length ? 'ok' : 'bad'}]
+    ]);
+    console.log('SE_FREQ_TOKENS_FOUND=' + seFound.length + '/' + SE_TOKENS.length);
+    console.log('SE_FREQ_TOKENS=' + (seFound.join(',') || 'none'));
+
+    /* 山場の保証とスマホ補正が本文に入っているか */
+    var GUARDS = [
+      {key:'ノーツ密度',   tok:'notesPerBarPerLane'},
+      {key:'山場フラグ',   tok:'spikeFired'},
+      {key:'キックの補正', tok:'900Hz'},
+      {key:'ベースの補正', tok:'330Hz'},
+      {key:'8小節目の保証', tok:'8小節目'}
+    ];
+    var guardRows = GUARDS.map(function(g){
+      var has = web.indexOf(g.tok) >= 0;
+      return [g.key, g.tok, {v: has ? 'あり' : 'なし', cls: has ? 'ok' : 'bad'}];
+    });
+    table(['担保したいこと','本文の目印','判定'], guardRows);
+    console.log('GUARDS_PRESENT=' + guardRows.filter(function(r){ return r[2].cls==='ok'; }).length +
+                '/' + GUARDS.length);
+
+    /* ============================================================
+       D. 「叩くほど層が増える」は本当に山場まで届くか（シミュレーション）
+       ============================================================ */
+    sec('D. 層が増えて山場に届くか（8小節ループのシミュレーション）');
+    txt('仕様：ヒットで layers[lane] を +1（最大3）、ミスで -1（最小0）。4レーン全部が3になった小節が山場。' +
+        '<br>1小節あたりのノーツ数を <b>1/2/4/8</b> で振り、命中率を変えて「山場が来るか・いつ来るか」を測る。');
+    var BPM = 128, BEATS_PER_BAR = 4, BAR_SEC = BEATS_PER_BAR * 60 / BPM;
+    var DURATION = 60;
+    var simRows = [];
+    [1,2,4,8].forEach(function(npb){
+      [0.6, 0.75, 0.9].forEach(function(hitRate){
+        var layers = [0,0,0,0], bars = 0, spikeBar = null;
+        var notesPerLanePerBar = Math.max(1, Math.round(npb / 4));
+        var totalNotesPerBar = notesPerLanePerBar * 4;
+        var barsInPlay = Math.floor(DURATION / BAR_SEC);
+        for(var b = 0; b < barsInPlay; b++){
+          for(var nn = 0; nn < notesPerLanePerBar; nn++){
+            for(var l = 0; l < 4; l++){
+              /* 命中は「回数」で決まる（乱数は使わず、決定的な循環で近似） */
+              var seq = (b * totalNotesPerBar + nn * 4 + l);
+              var hit = ((seq * 7 + 3) % 100) < Math.round(hitRate * 100);
+              layers[l] = Math.max(0, Math.min(3, layers[l] + (hit ? 1 : -1)));
+            }
+          }
+          bars++;
+          if(spikeBar === null && layers[0]===3 && layers[1]===3 && layers[2]===3 && layers[3]===3){
+            spikeBar = bars;
+          }
+        }
+        simRows.push([
+          npb + '個/小節',
+          (hitRate*100).toFixed(0) + '%',
+          layers.join('/'),
+          spikeBar === null ? '来ない' : (spikeBar + '小節目（' + (spikeBar*BAR_SEC).toFixed(1) + '秒）'),
+          {v: spikeBar === null ? 'NG' : 'OK', cls: spikeBar === null ? 'bad' : 'ok'}
+        ]);
+        console.log('SIM notesPerBar=' + npb + ' hitRate=' + hitRate +
+                    ' finalLayers=' + layers.join('/') +
+                    ' spikeBar=' + (spikeBar===null?'none':spikeBar));
+      });
+    });
+    table(['ノーツ密度','命中率','60秒後の層','山場が来た小節','判定'], simRows);
+    var anyNG = simRows.filter(function(r){ return r[4].cls === 'bad'; }).length;
+    console.log('SIM_NO_SPIKE_CASES=' + anyNG);
+    txt('1小節＝' + BAR_SEC.toFixed(3) + '秒（BPM128・4拍子）。60秒＝' + Math.floor(DURATION/BAR_SEC) + '小節。' +
+        '<br>山場に必要なヒット数は <b>12回</b>（4レーン×3段階）。');
+
+    /* プロンプトにノーツ密度の指定があるか */
+    var hasDensity = /1小節あたり|ノーツ数|何個|密度/.test(P.musicWebBlock(plan));
+    txt('プロンプトに「1小節あたり何個のノーツか」の指定：<b>' + (hasDensity ? 'あり' : 'なし') + '</b>');
+    console.log('WEB_HAS_NOTE_DENSITY=' + hasDensity);
+
+    console.log('DONE');
+  })();
+});
+</script>
+</body></html>

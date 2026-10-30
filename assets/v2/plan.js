@@ -11,6 +11,7 @@ const G = id => PK2.GAMES.find(x=>x.id===id);
 const N = id => PK2.GENRES.find(x=>x.id===id);
 const H = id => PK2.HOOKS.find(x=>x.id===id);
 const T = id => PK2.TWISTS.find(x=>x.id===id);
+const S = id => PK2.SITUATIONS.find(x=>x.id===id);
 
 /* ---------- タイトル（ジャンル×乗せ方で決まる） ---------- */
 const TITLES = {
@@ -111,7 +112,8 @@ const J_TWIST = {
   tw_dense:'shake', tw_speed:'trail', tw_shrink:'shake', tw_rise:'shake', tw_wall:'recoil',
   tw_chain:'comboscale', tw_grow:'popup', tw_order:'flash', tw_split:'particles',
   tw_aim:'zoom', tw_wait:'anticipation', tw_zone:'flash', tw_price:'popup',
-  tw_wind:'trail', tw_crack:'freeze', tw_decoy:'anticipation'
+  tw_wind:'trail', tw_crack:'freeze', tw_decoy:'anticipation',
+  tw_reverse:'recoil', tw_shoot:'hitSpark', tw_heal:'flash'
 };
 
 function pickJuice(genreId, twistId){
@@ -427,12 +429,102 @@ function sheetSlots(plan){
   return out;
 }
 
+/* ==================================================================
+   シチュエーション（タイトル画面に出す「どういう状況か」）
+   ピコ太郎の立場（PK2.PICO_STANCE）から作った12本を、
+   ジャンルに合う3本に絞り、IDから決定的に1本選ぶ（乱数なし）。
+   同じ選択なら、いつでも同じネタになる。
+   ================================================================== */
+const SITU_FIT = {
+  g_vshoot:    ['s_rival','s_wave','s_copy'],
+  g_hshoot:    ['s_world','s_rival','s_wave'],
+  g_platx:     ['s_rival','s_age','s_audience'],
+  g_platy:     ['s_rival','s_forget','s_wave'],
+  g_run:       ['s_rival','s_wave','s_onehit'],
+  g_run3d:     ['s_world','s_rival','s_copy'],
+  g_horde:     ['s_boss','s_copy','s_audience'],
+  g_rail:      ['s_face','s_signal','s_world'],
+  g_puzzact:   ['s_trio','s_onehit','s_copy'],
+  g_otoshimono:['s_trio','s_audience','s_forget'],
+  g_actpuzzle: ['s_signal','s_world','s_face'],
+  g_rhythm:    ['s_signal','s_age','s_trio'],
+  g_breakout:  ['s_wave','s_forget','s_onehit'],
+  g_fishing:   ['s_forget','s_wave','s_audience'],
+  g_batting:   ['s_age','s_onehit','s_rival'],
+  g_gun:       ['s_face','s_signal','s_age'],
+  g_shot:      ['s_audience','s_forget','s_trio'],
+  g_putting:   ['s_signal','s_face','s_wave'],
+  g_pong:      ['s_age','s_copy','s_rival'],
+  g_wall:      ['s_boss','s_onehit','s_face'],
+  g_haystack:  ['s_forget','s_copy','s_audience'],
+  g_tsubo:     ['s_trio','s_signal','s_audience']
+};
+
+/* 文字コードの合計だけで決める（ブラウザ差異が出ない・乱数なし） */
+function stableHash(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++) h = (h * 31 + str.charCodeAt(i)) % 100003;
+  return h;
+}
+
+function pickSituation(genreId, hookId, twistId){
+  const fit = SITU_FIT[genreId] || ['s_rival','s_forget','s_onehit'];
+  const idx = stableHash(genreId + '|' + (hookId||'') + '|' + (twistId||'')) % fit.length;
+  return S(fit[idx]) || PK2.SITUATIONS[0];
+}
+
+/* ==================================================================
+   展開（メイドインワリオ式）
+   Startでは躓かせない。8秒で「何か来る」と予告し、
+   後半に不条理が出て、最後はゲームもBGMも一緒に加速する。
+   数値はすべて「慣れた人が5回に2回」のための調整値。
+   ================================================================== */
+const PHASES = [
+  {id:'start',  at:'0〜8秒',    name:'START（ふつう）',      speed:'×1.00', bpm:128,
+   mob:'いちばん少ない数（同時1個）',
+   note:'ここで不条理を出さない。操作を覚える8秒にする。'},
+  {id:'sign',   at:'8秒',       name:'予告（気配だけ）',      speed:'×1.00', bpm:128,
+   mob:'増やさない',
+   note:'音を1つ鳴らし、画面の端に短いラベルを1回だけ出す。「何か来る」と分からせる。中身は見せない。'},
+  {id:'odd',    at:'8〜40秒',   name:'不条理が出る',          speed:'×1.05', bpm:128,
+   mob:'同時1個のまま',
+   note:'シチュエーションの仕掛けが画面に入る。ここで「そういうことか」と笑う。'},
+  {id:'ramp',   at:'残り20秒',  name:'加速（1段目）',        speed:'×1.12', bpm:143,
+   mob:'同時2個',
+   note:'背景の端をうっすら赤くする。BGMのハイハットを8分から16分に増やす。'},
+  {id:'rush',   at:'残り10秒',  name:'ラッシュ（2段目）',    speed:'×1.28', bpm:164,
+   mob:'同時3個',
+   note:'画面の縁を赤い帯で囲む。BGMにアルペジオを1本足す。'},
+  {id:'last',   at:'残り5秒',   name:'最後（3段目）',        speed:'×1.42', bpm:182,
+   mob:'同時4個（出現間隔の下限0.25秒まで）',
+   note:'画面を0.12秒おきに明滅させる。ここで誰でも声が出る。'}
+];
+
+const ESCALATE_RULE = `Startで不条理を出さないこと。いきなり不条理だと、プレイヤーは「壊れている」と判断して閉じる。
+・最初の8秒は、ふつうのゲームとして気持ちよく動くことだけに使う。
+・8秒目に「何か来る」とだけ予告する（中身は見せない）。ここで「何だろう」と思わせる。
+・8〜40秒で不条理が出る。出た瞬間に、上のシチュエーションの1行が画面に出る。
+・残り20秒から、ゲームとBGMを同じ倍率で一緒に速くする。片方だけ速くしない。
+・難易度の目標：慣れた人が10回に4〜5回クリア、初見が10回に1回。「慣れればギリギリ通る」に合わせる。
+・速くするのは「速度」と「数」だけ。操作の種類は増やさない（Startで覚えた操作のまま最後まで行ける）。`;
+
+function escalateBlock(plan){
+  const rows = PHASES.map(p=>
+    `・${p.at}｜${p.name}｜速さ ${p.speed}｜BGM ${p.bpm}BPM｜${p.mob}\n    ${p.note}`
+  ).join('\n');
+  return `【展開（この表のとおりに作る）】\n${rows}`;
+}
+
 /* ---------- 案の組み立て ---------- */
 function buildPlan(st){
   const genre = N(st.genre) || PK2.GENRES[0];
   const hook  = H(st.hook)  || PK2.HOOKS[0];
-  const twist = T(st.twist || genre.twist) || PK2.TWISTS[0];
+  /* tw_dense / tw_speed / tw_price は「全ゲーム共通の味付け」なので、
+     選択の対象から外す。古い保存データに残っていても、ここで必ず選べる物に戻す。 */
+  const pickable = id => { const t = T(id); return (t && !t.hidden && !t.always) ? t : null; };
+  const twist = pickable(st.twist) || pickable(genre.twist) || PK2.TWIST_PICK[0];
   const cap   = (PK2.EXP.find(e=>e.id===st.exp)||{}).cap || 2;
+  const situ  = pickSituation(genre.id, hook.id, twist.id);
 
   const title = (TITLES[genre.id]||'{w}ゲーム').replace('{w}', hook.word);
   const cores = picoFits(genre.id, hook.id);
@@ -453,6 +545,13 @@ function buildPlan(st){
     hookId:hook.id, hookLabel:hook.label, hookWord:hook.word,
     twistId:twist.id, twistLabel:twist.label, twistOne:twist.one,
     twistHow:twist.how, twistEffect:twist.effect,
+    /* 全ゲームに必ず入る3つ（画面には出さない） */
+    alwaysTwists: PK2.TWIST_ALWAYS.map(t=>({id:t.id, label:t.label, one:t.one, why:t.whyAlways})),
+    /* タイトル画面に出すシチュエーション */
+    situId:situ.id, situLabel:situ.label, situTitle:situ.title, situGag:situ.gag,
+    situGoal:situ.goal, situFear:situ.fear, situWant:situ.want, situEnemy:situ.enemy,
+    /* 展開（Start→不条理→加速） */
+    phases:PHASES,
     title, duration, target, life, success, fail,
     input:genre.input, view:genre.view,
     oneline:`${genre.loop.replace(/。$/,'')} ${hook.one}`,
@@ -521,5 +620,6 @@ function caution(plan){
 
 PK2.plan = { recommendGenres, recommendHooks, buildPlan, alternatives, caution, topPick,
              TITLES, SHOW, PICO_CORE, JUICE, pickJuice, sheetSlots,
-             ABSURD, ABSURD_HOOK, absurdOf };
+             ABSURD, ABSURD_HOOK, absurdOf,
+             pickSituation, stableHash, PHASES, ESCALATE_RULE, escalateBlock, SITU_FIT };
 })();

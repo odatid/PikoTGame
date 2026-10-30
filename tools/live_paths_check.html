@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>公開リポジトリに何が入っているか</title>
+<style>
+ body{margin:0;background:#F3EEE4;font:13px/1.6 system-ui,sans-serif;color:#222;padding:14px 18px}
+ h1{font-size:15px;margin:0 0 4px}
+ p.note{margin:0 0 10px;color:#555;font-size:12px}
+ table{border-collapse:collapse}
+ th,td{border:1px solid #cfc8ba;padding:4px 10px;font:12px/1.5 monospace}
+ th{background:#efe7d8}
+ .yes{color:#0a6b2d;font-weight:bold}
+ .no{color:#b0002a;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>公開中 PikoTGame に、どのパスが存在するか</h1>
+<p class="note">
+  「丸ごと push」したときに、v1 のファイルや検証ツールまで公開リポジトリに入ってしまうかを確認する。
+  200 が返れば存在、404 なら存在しない。推測では書かない。
+</p>
+<table id="t"><thead><tr><th>パス</th><th>公開中の状態</th><th>備考</th></tr></thead><tbody></tbody></table>
+
+<script>
+(function(){
+  var LIVE = 'https://odatid.github.io/PikoTGame/';
+  var PATHS = [
+    ['index.html',              'v2の本体'],
+    ['assets/v2/app.js',        'v2の本体'],
+    ['assets/v2/style.css',     'v2の本体'],
+    ['README.md',               '説明（学生は読まない）'],
+    ['v1.html',                 'v1の残骸 → 置かない約束'],
+    ['assets/css/style.css',    'v1専用 → 置かない約束'],
+    ['assets/js/app.js',        'v1専用 → 置かない約束'],
+    ['csv/設定.csv',            'v1のDB → 置かない約束'],
+    ['tools/v2_check.html',     '検証ツール（今回16個に増えた）'],
+    ['tools/deploy_diff.html',  '検証ツール'],
+    ['tools/v2_situation_check.html','今回追加した検証ツール']
+  ];
+  var tb = document.querySelector('#t tbody');
+
+  function probe(p){
+    var url = LIVE + encodeURI(p) + '?cb=' + Date.now();
+    return fetch(url, {cache:'no-store', method:'GET'}).then(function(r){
+      return {p:p, status:r.status, ok:r.ok};
+    }).catch(function(e){
+      return {p:p, status:'ERR', ok:false, e:e.message};
+    });
+  }
+
+  Promise.all(PATHS.map(function(x){ return probe(x[0]).then(function(r){ return {r:r, note:x[1]}; }); }))
+    .then(function(rows){
+      var live=0, absent=0;
+      rows.forEach(function(o){
+        var r=o.r;
+        var exists = (r.status===200);
+        if(exists) live++; else absent++;
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>'+r.p+'</td>' +
+          '<td class="'+(exists?'yes':'no')+'">'+(exists?('ある ('+r.status+')'):('ない ('+r.status+')'))+'</td>' +
+          '<td>'+o.note+'</td>';
+        tb.appendChild(tr);
+        console.log('PATH '+r.p+' status='+r.status+' exists_on_live='+exists);
+      });
+      console.log('SUMMARY 公開中にある=' + live + ' ない=' + absent + ' / 全' + rows.length);
+      console.log('DONE');
+    });
+})();
+</script>
+</body></html>

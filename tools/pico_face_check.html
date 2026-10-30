@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>ピコ太郎 顔の比率 実測</title>
+<style>
+  body{margin:0;background:#F3EEE4;font:13px/1.6 system-ui,sans-serif;color:#222;padding:14px 18px}
+  h1{font-size:15px;margin:0 0 4px}
+  p.note{margin:0 0 10px;color:#555;font-size:12px}
+  #wrap{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+  canvas{border:1px solid #d8d2c6;background:#fff}
+  table{border-collapse:collapse}
+  th,td{border:1px solid #cfc8ba;padding:3px 9px;font:12px/1.5 monospace;text-align:right}
+  th{background:#efe7d8}
+  td.lbl{text-align:left}
+  .ok{color:#0a6b2d}
+  .bad{color:#b0002a;font-weight:bold}
+  #err{color:#b00;font:12px monospace;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>ピコ太郎 顔の比率を、描いた画素から測る</h1>
+<p class="note">
+  drawPico を白背景に大きく描き、行ごとに「白でない画素の左右端」を走査して、
+  頭の幅を W（頭の最大幅=1.00）で表す。仕様（PICO_SPEC）と突き合わせる。
+  頭より下（腕・胴）は測らない。測定範囲は 頭頂 0.00 〜 顎 1.32 まで。
+</p>
+<div id="err"></div>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <div><table id="t"><thead><tr><th>高さ（頭頂0→顎1）</th><th>測定幅 / W</th><th>仕様</th><th>判定</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+window.addEventListener('load', function(){
+  var err = document.getElementById('err');
+  if(!window.PK2 || !PK2.prompts || typeof PK2.prompts.drawPico !== 'function'){
+    err.textContent = 'drawPico が見つかりません'; return;
+  }
+  /* 頭の幅 s を 160px にして、1W = 160px で測る（誤差 1/160 W 程度）
+     キャンバスは全高 3.05W より必ず大きくする（足りないと頭が画布の外に出て測れない） */
+  var S = 160, CW = S * 1.7, CH = S * 3.25;
+  var cv = document.getElementById('cv');
+  var dpr = 1;
+  cv.width = CW; cv.height = CH;
+  var ctx = cv.getContext('2d', {willReadFrequently:true});
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, CW, CH);
+
+  /* 足元を画布の下に置く。H=3.05 なので 頭頂は y = CH - 3.05W の位置 */
+  var footX = CW / 2, footY = CH - S * 0.06;
+  var topPx = footY - S * 3.05;               /* 頭頂の画面Y */
+
+  try{ PK2.prompts.drawPico(ctx, footX, footY, S, 'idle', 1, 1); }
+  catch(e){ err.textContent = 'draw error: ' + e.message; return; }
+
+  var img = ctx.getImageData(0, 0, CW, CH).data;
+  function rowWidth(px){                       /* 画面Y(px) の行の、非白の左右端 */
+    var y = Math.round(px);
+    if(y < 0 || y >= CH) return null;
+    var left = -1, right = -1;
+    for(var x = 0; x < CW; x++){
+      var i = (y * CW + x) * 4;
+      var r = img[i], g = img[i+1], b = img[i+2], a = img[i+3];
+      if(a > 20 && !(r > 246 && g > 246 && b > 246)){
+        if(left < 0) left = x;
+        right = x;
+      }
+    }
+    if(left < 0) return null;
+    return {left:left, right:right, w:(right - left + 1) / S};
+  }
+
+  /* --- 1. 頭の最大幅と、その高さを探す（頭頂〜顎1.32） --- */
+  var maxW = 0, maxAt = 0, samples = [];
+  for(var v = 0; v <= 1.32; v += 0.005){
+    var r = rowWidth(topPx + v * S);
+    if(!r) continue;
+    samples.push({v:v, w:r.w});
+    if(r.w > maxW){ maxW = r.w; maxAt = v; }
+  }
+  /* 正規化：最大幅を 1.00W とみなす */
+  function at(v){
+    var best = null, bd = 9;
+    samples.forEach(function(s){ var d = Math.abs(s.v - v); if(d < bd){ bd = d; best = s; } });
+    return best ? best.w / maxW : null;
+  }
+
+  var TICKS = [
+    {v:0.18, spec:null, name:'生え際'},
+    {v:0.31, spec:null, name:'眉'},
+    {v:0.38, spec:null, name:'目の中心'},
+    {v:0.51, spec:0.95, name:'鼻の先（＝頬骨）'},
+    {v:0.58, spec:null, name:'口髭'},
+    {v:0.67, spec:null, name:'口の中心'},
+    {v:0.90, spec:null, name:'顎の手前'},
+    {v:1.24, spec:0.52, name:'顎'}
+  ];
+  var tb = document.querySelector('#t tbody');
+  TICKS.forEach(function(t){
+    var w = at(t.v);
+    var tr = document.createElement('tr');
+    var judge = '—', cls = '';
+    if(t.spec !== null && w !== null){
+      var d = Math.abs(w - t.spec);
+      if(d <= 0.05){ judge = '一致'; cls = 'ok'; }
+      else { judge = '差 ' + (w - t.spec > 0 ? '+' : '') + (w - t.spec).toFixed(2); cls = 'bad'; }
+    }
+    tr.innerHTML = '<td class="lbl">' + t.name + '（' + t.v.toFixed(2) + '）</td><td>' +
+      (w === null ? '—' : w.toFixed(3)) + '</td><td>' +
+      (t.spec === null ? '—' : t.spec.toFixed(2)) + '</td><td class="' + cls + '">' + judge + '</td>';
+    tb.appendChild(tr);
+  });
+
+  /* --- 2. 測定結果の要約 --- */
+  console.log('MAX_WIDTH_W=' + maxW.toFixed(3) + ' AT_HEIGHT=' + maxAt.toFixed(3));
+  console.log('W_AT_NOSE(0.51)=' + (at(0.51) === null ? 'null' : at(0.51).toFixed(3)));
+  console.log('W_AT_CHIN(1.24)=' + (at(1.24) === null ? 'null' : at(1.24).toFixed(3)));
+  console.log('W_AT_EYE(0.38)=' + (at(0.38) === null ? 'null' : at(0.38).toFixed(3)));
+  console.log('W_AT_MOUTH(0.67)=' + (at(0.67) === null ? 'null' : at(0.67).toFixed(3)));
+  var headTopRow = samples.length ? samples[0].v : null;
+  console.log('SAMPLES=' + samples.length + ' TOP_ROW_V=' + headTopRow);
+  var widest = null;
+  samples.forEach(function(s){ if(s.w === maxW) widest = s.v; });
+  console.log('DONE');
+});
+</script>
+</body></html>

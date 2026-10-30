@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>スクロール保持の計測</title>
+<link rel="stylesheet" href="../assets/v2/style.css">
+<style>
+  /* 画面と同じ構成。ただし計測のため高さを制限する */
+  .shell{padding-bottom:60px}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="wordmark" href="#"><span class="wm-main">PK<span class="slash">//</span>PROTO</span>
+    <span class="wm-sub">好きなゲームに、ピコ太郎を乗せる。</span></a>
+  <div class="bar-right"><span class="ver">v2</span>
+    <button class="icon-btn" type="button">印刷</button>
+    <button class="icon-btn" type="button">最初から</button></div>
+</div></header>
+<div class="shell"><nav class="rail" id="rail"></nav><main id="app" class="app" tabindex="-1"></main></div>
+<div class="toast" id="toast"></div>
+
+<pre id="log" style="position:fixed;right:8px;bottom:8px;max-width:520px;max-height:260px;overflow:auto;background:#111;color:#0f0;font:11px/1.5 monospace;padding:8px;margin:0;z-index:9999;white-space:pre-wrap"></pre>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script src="../assets/v2/app.js"></script>
+
+<script>
+window.addEventListener('load', function(){
+  var L = [], out = document.getElementById('log');
+  function log(s){ L.push(s); console.log(s); out.textContent = L.join('\n'); }
+  var st = window.PK2app.state;
+
+  function reset(step, extra){
+    st.step = step; st.games = ['g_suika','g_vamp'];
+    st.genre = 'g_otoshimono'; st.hook = 'h_item'; st.twist = 'tw_grow';
+    st.exp = 'some'; st.goal = 'both'; st.tab = 'plan';
+    st.check = {a:true,b:false,c:false};
+    if(extra) Object.keys(extra).forEach(function(k){ st[k] = extra[k]; });
+    window.PK2app.render();
+  }
+  function click(sel){
+    var el = document.querySelector(sel);
+    if(!el) return null;
+    el.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    return el;
+  }
+
+  /* ---- 計測1：ゲームを選んでもスクロール位置が保たれるか ---- */
+  reset('games');
+  window.scrollTo(0, 700);
+  var y0 = window.scrollY;
+  click('[data-game="g_puyo"]');
+  var y1 = window.scrollY;
+  log('games: y0=' + y0 + ' → y1=' + y1 + ' kept=' + (y1 === y0) + ' (下スクロール中に選んでも戻らない)');
+
+  /* ---- 計測2：ジャンルを選んでも保たれるか ---- */
+  reset('genre');
+  window.scrollTo(0, 900);
+  var g0 = window.scrollY;
+  click('[data-genre="g_rhythm"]');
+  var g1 = window.scrollY;
+  log('genre: y0=' + g0 + ' → y1=' + g1 + ' kept=' + (g1 === g0));
+
+  /* ---- 計測3：乗せ方を選んでも保たれるか ---- */
+  reset('hook');
+  window.scrollTo(0, 500);
+  var h0 = window.scrollY;
+  click('[data-hook]');
+  var h1 = window.scrollY;
+  log('hook: y0=' + h0 + ' → y1=' + h1 + ' kept=' + (h1 === h0));
+
+  /* ---- 計測4：結果画面の刺激の1手を差し替えても保たれるか ---- */
+  reset('result');
+  window.scrollTo(0, 1200);
+  var t0 = window.scrollY;
+  click('[data-twist]');
+  var t1 = window.scrollY;
+  log('twist: y0=' + t0 + ' → y1=' + t1 + ' kept=' + (t1 === t0));
+
+  /* ---- 計測5：設問をまたぐ移動では先頭へ戻るべき ---- */
+  reset('games');
+  window.scrollTo(0, 800);
+  var n0 = window.scrollY;
+  click('[data-go="genre"]');
+  /* smooth スクロールなので少し待つ */
+  setTimeout(function(){
+    var n1 = window.scrollY;
+    log('next(games→genre): y0=' + n0 + ' → y1=' + n1 + ' wentTop=' + (n1 === 0));
+
+    /* ---- 計測6：出力タブ切り替えで保たれるか ---- */
+    reset('out');
+    window.scrollTo(0, 400);
+    var o0 = window.scrollY;
+    click('[data-tab="unity"]');
+    var o1 = window.scrollY;
+    log('tab(out): y0=' + o0 + ' → y1=' + o1 + ' kept=' + (o1 === o0));
+
+    log('DONE');
+  }, 500);
+});
+</script>
+</body>
+</html>
