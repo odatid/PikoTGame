@@ -16,48 +16,261 @@
 
 ## テスト依頼のルール（2026-10-30 追加）
 
-**テストをお願いするときは、必ず「更新するファイル」を明記する。** 「丸ごと更新」とは書かない。
+**成果物を渡すときは、ZIPのリンクを直接出す。** 「このファイルにチェックを入れて」という指示はしない。
 
-理由：作業フォルダには公開物以外（`tools/` 17ファイル、`csv/` 27ファイル、`v1.html`、`assets/css/`、`assets/js/`）も入っている。
-「丸ごと」と指示すると、未公開の検証ツールまで公開リポジトリに入ってしまう。
+### 渡し方：`package.html`（配布パッケージページ）
 
-テスト依頼のときは、毎回この形で出す：
+**URL：https://odatid.github.io/PikoTGame/package.html**
+
+開いて「ZIPをダウンロード」を押すと、`PikoTGame_シチュエーション版_20261030.zip` が保存される。
+中身は**フォルダ構成のまま**（`index.html` と `assets/v2/*.js|css` の6つ）。
+`tools/`・`csv/`・v1のファイルは入らない。
+
+- ボタンを押す前に、6ファイルすべてを読めてZIPを組めるか**自己検証**している（`SELFTEST_*` を console に出す）
+- ZIPは外部ライブラリを使わず自前で組む（`store` 方式＝無圧縮）。CDNが使えない場所でも動く
+- ファイル名は `PK2.VERSION.tag` と `date` から作るので、**版が上がればファイル名も変わる**
+- READMEも入れたいときはチェックボックスを1つ入れるだけ
+
+### エージェント側の制約（重要）
+
+エージェントのツールは**テキストしか書けず、ZIPバイナリを直接作れない**。
+そのため「ZIPファイルそのもののリンク」は作れない。代わりに
+**ブラウザでZIPを組み立てるページ（`package.html`）のリンク**を渡す。
+これは実質ワンクリックで、チェック作業もファイル選択も要らない。
+
+### 実測した検証結果（`tools` ではなく `package.html` 自身が出す）
 
 ```
-### 更新するファイル（この6つだけ）
-- index.html
-- assets/v2/genres.js
-- assets/v2/plan.js
-- assets/v2/prompts.js
-- assets/v2/app.js
-- assets/v2/style.css
-
-### 更新しないもの
-- tools/  … 検証用（公開しない）
-- csv/    … v1のDB（v2では読まない）
-- v1.html / assets/css/ / assets/js/ … v1（触らない）
+SELFTEST_CRC32_VECTOR=CBF43926 EXPECT=CBF43926 OK=true   ← 規格の既知値と一致
+SELFTEST_CRC32_EMPTY=0 EXPECT=0 OK=true
+SELFTEST_FILES_OK=6/6
+SELFTEST_TOTAL_BYTES=213669
+SELFTEST_ZIP_BYTES=214349
+SELFTEST_ZIP_ENTRIES=6
+SELFTEST_ZIP_NAMES=index.html,assets/v2/genres.js,assets/v2/plan.js,assets/v2/prompts.js,assets/v2/app.js,assets/v2/style.css
+SELFTEST_ZIP_SAME_ORDER=true
+SELFTEST_ZIP_HAS_EOCD=true
+SELFTEST_ZIP_OK=true
+SELFTEST_STARTS_WITH_PK=true
+SELFTEST_NAME=PikoTGame_シチュエーション版_20261030.zip
+SELFTEST_READY=true
 ```
 
-実際に上げるものが分からないときは、推測せずに次の2つを実行して実測で決める。
+**限界（正直に書く）**：ZIPの構造・CRC32・EOCD・PK署名は検証済みだが、
+実際にOSの解凍ツールで開いた確認はしていない（この環境にシェルが無いため）。
+`store`（無圧縮）方式なので、形式どおりなら解凍できる。
+
+### 古いやり方（もう使わない）
 
 | ツール | 何が分かるか |
 |---|---|
 | `tools/deploy_diff.html` | 6ファイルのうち、どれが公開中と違うか（`UPDATE_LIST=` で一覧が出る） |
 | `tools/live_paths_check.html` | そのパスが公開リポジトリに既にあるか（200 / 404） |
+| `tools/cache_header_check.html` | 公開中のレスポンスヘッダー（キャッシュが残る設定か） |
+
+これらは調査用として残すが、**受け渡しには使わない**。
 
 ---
 
 ## 版の刻印（最新かどうかの確認方法）
 
-ツール上部・ヘッダーの黄色いチップに **「シチュエーション版」** と出ていれば最新です。
-押すと今回の目玉4点が出ます（`assets/v2/genres.js` の `PK2.VERSION` が唯一の出どころ）。
+ツール上部・ヘッダーの黄色いチップに **「30秒とBGMを直した版」** と出ていれば最新です。
+押すと今回の目玉5点が出ます（`assets/v2/genres.js` の `PK2.VERSION` が唯一の出どころ）。
 **この表示だけで判断できるので、配布前にプッシュ差分を調べる必要はありません。**
 
-現在の版：`2026-10-30 / シチュエーション版`
-- タイトル画面に「このゲームはどういう状況か」を必ず書く
-- Startは普通。不条理は後から来る。最後に全員で加速
-- ピコ太郎は常にクネクネ（3分割・BGMのテンポ連動）＋キラキラ
-- 味付けは「おすすめ」を明示。デフォルト3つは表示しない
+現在の版：`2026-10-31 / 30秒とBGMを直した版`
+- genre.time 60秒×22件 → **30秒×22件**（`buildPlan` の duration も `{"30":22}`・40秒超0件）
+- 展開を **0〜5秒／5〜18秒／残り12・7・3秒** に組み直し（BPMは128→143→164→182のまま）
+- 目標値（target）を60秒前提から半分に換算（例：30→15、20→10、1000→500）
+- BGMと効果音を **参照コード2（7,199字）** として同梱。実ブラウザ実行で `PASS=64 FAIL=0 JS_ERRORS=0`
+- BGMは「文章」から「貼るコード」に移した（位置 76.7% → **33.8%**、参照コードの直後）
+
+### 直した原因：60秒はデータ側にあった（2026-10-31）
+
+先生の指摘「ゲーム時間が60秒になっている。30秒か長くても40秒と指示したはず」は**事実**でした。
+
+**原因（推測ではなく、値を数えた結果）**
+`PK2.GENRES` の全22件が `time:60` でした（`genre.time=60秒 → 22件`）。
+`buildPlan` は `plan.duration = genre.time` をそのまま使うので、
+プロンプトに何と書いても 60秒が出ていました（`PLAN_DURATION_VALUES={"60":22}` `OVER_40=22`）。
+同梱した参照コードにも `duration: 60` が入っていました（`CORE_duration_lines=["duration: 60"]`）。
+つまり**指示ではなくデータが原因**で、文章をいくら直しても直りませんでした。
+
+**BGMについて（消えてはいなかったが、私が壊していた）**
+ファミコン後期風BGMの指示は12項目すべて存在していました（`BGM見出し=true` `パルス2本=true` `duty 25%=true` …）。
+ただし**私が壊した点が1つ**ありました。同梱した参照コードには**音が1行も入っていない**のに
+「これを貼れ」と言っていたため、「貼った骨格にBGMを足せ」という矛盾した二重指示になっていました。
+位置も 76.7%（参照コード終了が 37.7%）と後ろで、読み飛ばされる位置でした。
+そこで **音も `AUDIO_CODE`（7,199字）として同梱**し、参照コードの直後（33.8%）に置きました。
+
+**この方式の限界（正直に書く）**
+確かめられるのは「同梱したコードが正しく動くこと」までです。
+生成AIが実際に貼ったかどうかは、私からは見えません。
+
+### 方針転換：文章で指示するのをやめ、動くコードを同梱する（2026-10-31）
+
+先生の指摘「スペースキーでジャンプできない」が2回続けて直らなかったため、原因を切り分けました。
+
+**原因（推測ではなく、Geminiの修正指示から読み取った事実）**
+Gemini の修正指示は `keys[' ']` / `spawnParticles()` / `parts` / `pt.on` / `renderPlayScreen()` という
+**具体名**で書かれていました。つまり向こうは「名前の決まったコード」が来ないと動かせない。
+こちらが送っていたのは「こう書いてください」という日本語の説明で、コードではなかった。
+これが2回続けて外した理由です。
+
+**やったこと（禁止事項を守ったまま）**
+プロンプトの中に `CORE_CODE`（12,715字）を同梱しました。中身は入力・ジャンプ・粒・拡縮・揺れ・
+ヒットストップ・数字ポップ・画面遷移・ループが**全部つながった完成コード**です。
+生成側（Gemini）が書くのは `updateGame(dt)` と `drawGameObjects()` の2か所だけになります。
+- 乱数は使っていません（粒の散らばりは黄金角 `made * 2.399963`）。同じ入力なら同じ出力です。
+- 生成AIのAPIは使っていません。プロンプト文字列を組み立てるだけです。
+- 外部ライブラリ・CDN・画像ファイルは使いません（Canvas 2D の図形のみ）。
+
+**この方式の限界（正直に書く）**
+私が確かめられるのは「同梱したコードが正しく動くこと」までです。
+Gemini が実際にそれを貼ったかどうかは、私からは見えません。
+ですから学生側・生成側の最終確認は、これまでどおり先生の目視が必要です。
+
+#### 実測：`tools/v2_core_check.html`（実ブラウザで実行して数えた）
+
+このページは、プロンプトから `CORE_CODE` と `PICO_DRAW_SRC` を**取り出してそのまま実行**します。
+つまり「生成AIが貼ったときと同じコード」が動きます。判定は文章ではなく実行結果です。
+
+```
+=== 1. 骨格がプロンプトに入っているか ===
+CORE_CODE_CHARS=12715   WEB_CONTAINS_CORE=true   WEB_CONTAINS_PICO=true
+CORE_BACKTICKS=0   CORE_DOLLAR_BRACE=0   CORE_HAS_UNDEFINED=false   PROMPT_HAS_UNDEFINED=false
+（バックティック0件＝テンプレートリテラルが壊れない。過去2回踏んだ罠を作らない）
+
+=== 2. 名前が揃っているか ===
+registerInput / tryJump / startGame / endGame / squash / updateSquash /
+spawnParticles / updateParticles / drawParticles / countParticles / parts / pt.on /
+MAX_PARTS / renderPlayScreen / updateGame / drawGameObjects / jumpLatch / keys /
+onGround / hitstop / shake / popups  → 22/22 true
+
+=== 4〜7. スペースキー ===
+T0_STATE=TITLE
+AFTER_SPACE_STATE=PLAY        ← TITLE から1回で PLAY に入る
+AFTER_SPACE_VY=-720           ← 上向きの初速が入っている
+AFTER_SPACE_ONGROUND=false
+AFTER_SPACE_LATCH=true
+AFTER_SPACE_SX=0.82 / SY=1.22 ← 離陸の伸びが同時に立つ
+AFTER_SPACE_PARTS=6           ← 粒が6個、同時に発生
+REPEAT_KEYDOWN_PARTS=6        ← 押しっぱなしで増えない
+AIR_RETRY_PARTS=6             ← 空中で押し直しても跳ばない
+LAND_ONGROUND=true            ← 着地で戻る
+LAND_SY=0.76                  ← 着地の潰れ
+LAND_PARTS=16                 ← 着地で+10
+SECOND_JUMP_VY=-720          ← 2回目も跳べる
+JUMP_CALLS_PER_KEYDOWN=1     ← イベント二重登録なし（2なら重くなる原因）
+RETRY_STATE=PLAY RETRY_TIMELEFT=60  ← RESULT からスペースで再開
+
+=== 10〜15. 演出と重さ ===
+JUICE_OFF_PARTS=0 / JUICE_ON_PARTS=6   ← TUNING.juice で完全に消える
+PARTS_AFTER_0.66s=0                    ← 0.30秒で消える
+RENDER_TITLE=OK RENDER_PLAY=OK RENDER_RESULT=OK
+SQUASH_AFTER_30X=1.28/0.76             ← 連打しても積もらない（clamp が効く）
+RAF_CALLS_IN_SRC=2                     ← 起動1＋ループ1（増殖しない）
+SRC_shadowBlur=0 SRC_ctx_filter=0      ← 重くする6つのうち2つは不使用
+SRC_canvas_width_assign=1              ← 初期化の1回だけ
+
+=== 16. まとめ ===
+PASS=71 FAIL=0 JS_ERRORS=0 ALL_OK=true
+```
+
+**測り方の注意（前回の反省）**：最初の実行では FAIL=4 でしたが、4件とも**私の検証ツールの誤り**でした
+（hitstop を残したまま時間切れを判定／空中でキーを押していた／コメント中の語を数えていた）。
+製品を直す前にツールを直し、再実行して `FAIL=0` を確認しています。
+
+#### 実測：`tools/v2_core_check.html` の目視（スクリーンショット）
+
+黒い canvas に、角刈りの頭・黒縁眼鏡・口髭・黄色に黒い斑点の服・白い足2つのキャラが床の上に描かれ、
+左上に `SCORE 0  TIME 59`、下部に `スペースで ジャンプ／はじめる` が出ている。
+**コードが文章として画面に漏れている箇所はなし**（バックティック0件の確認と一致）。
+
+#### 実測：プロンプトの内訳 `tools/prompt_breakdown_check.html`
+
+```
+WEB_TOTAL_CHARS=36632  WEB_LINES=1020
+   12715字  34.7%  ★参照コード（CORE_CODE）
+    4845字  13.2%  drawPico のソース（PICO_DRAW_SRC）
+    2046字   5.6%  BGM仕様（NES_BGM）
+    1525字   4.2%  キャラ仕様の数値表
+    1419字   3.9%  エフェクトの確認（EFFECT_CHECK）
+    1296字   3.5%  重くする書き方6つ（PERF_HARD）
+    1038字   2.8%  拡縮の数値表（JUICE_SCALE）
+     913字   2.5%  入力キー（INPUT_SPEC）
+     834字   2.3%  クネクネ仕様（WIGGLE_SPEC）
+MUST_COUNT(必ず)=32  FORBID_COUNT(禁止/しない)=51  MUST_PER_1000CHARS=0.87
+
+位置（前は 47〜85% 地点に埋もれていた）
+  スペースキーの判定   7.6%地点  ← 参照コードの前倒しで、47% から大きく前へ
+  粒の発生            17.2%地点
+  クネクネ            25.1%地点
+  拡縮の数値表         51.2%地点
+  重さの6項目          58.2%地点
+```
+
+**「必ず」は32回**（前回31回）。同梱したコードのぶん総量が増えたのに、命令の密度はほぼ変えていません。
+二重記述（入力の9項目を文章でも全部書く／演出を文章でも全部書く／クネクネの式を文章でも書く）を
+**参照に置き換えて削り**、水増しを相殺しました。
+
+#### 回帰（既存の検証も維持）
+
+`tools/v2_nes_check.html`：`ALL_OK=true` / `JS_ERRORS=0` / `VERSION_TAG=動く骨格を同梱した版` /
+`CHIP_MATCHES=true` / `POINTS=5` / `BGM_ALL_6=true` / `GENRES_OK=22/22` /
+`P1_NO_FILTER〜P6_RESTORE_CTX=true` / `WEB_OVER_40K=false`
+
+`tools/v2_input_juice_check.html`（判定を参照コード側に付け替えて再実行）：
+`CORE_HAS_SPACE_KEYNAME=true` / `CORE_HAS_PREVENTDEFAULT=true` / `CORE_HAS_KEYUP=true` /
+`CORE_HAS_POINTER_ALT=true` / `CORE_HAS_TRYJUMP=true` / `CORE_HAS_JUMPLATCH=true` /
+`CORE_HAS_INPUT_READY=true` / `WEB_CONTAINS_CORE=true` / `SPACE_MENTIONS=10`（前回0） /
+`CORE_HAS_PARTS_POOL=true` / `CORE_HAS_LIGHTER=true` / `CORE_HAS_RESTORE=true` /
+`HAS_UNDEFINED=false` / `HAS_NAN=false` / `SAME_OUTPUT=true`
+
+### 2026-10-31 に直した4症状（前回ぶん・すべて実測にもとづく）
+
+| 症状（先生の指摘） | 実測した原因 | 直し方 |
+|---|---|---|
+| スペースキーでジャンプできない | **`prompts.js` 全体に「スペース」が0件**。キー名の指定がどこにも無かった | `INPUT_SPEC` を追加（`e.key===' '`／`e.code==='Space'`／`preventDefault`／`keyup`／タッチ代替）。2.4%地点 |
+| エフェクトが消えた | 「入れる」とは書いてあるが、**出ているかを確かめる手順が無かった** | `EFFECT_CHECK`（粒・数字・揺れ・止め・白飛びの5つを口に出して数える）を追加 |
+| 拡縮のジューシーが無い | 倍率は書いてあったが**秒数とイージングと原点が弱く、旧数値と二重**になり得た | `JUICE_SCALE` に9行の数値表（sx/sy/戻す秒数/意味）＋`1-(1-t)^3`＋clamp 0.75〜1.30 |
+| 手足は不要かも | 手足で 209命令。落とすと **137命令（34%減）** | `drawPico` から腕・脚を削除。`H=3.05→2.50`、足は白い箱2つだけ |
+| WEB版が重い | **キャラは無実**（3分割でも0.0817ms＝予算16.67msの0.5%） | `PERF_HARD` で重くする6つを名指しで禁止＋FPS計測コード |
+
+**重さについての結論（数字で）**：ピコ太郎を3分割で描いても 0.0817ms／フレーム。
+60fpsの予算16.67msに対して **0.5%**。つまり「キャラの絵が重い」は誤りで、
+重くしているのは `shadowBlur`・`ctx.filter`・毎フレームの `fillText`・
+`canvas.width` の再設定・ループ内 `new`・`requestAnimationFrame` の増殖の6つ。
+
+### 版名はHTMLに直接書く（JSで書き換えない）
+
+**2026-10-30 に実際に起きた誤解**：push は成功していたのに、画面のチップが「v2」のままで
+「最新になっていない」と判断された。原因はキャッシュで、実測は次のとおり。
+
+```
+HDR index.html           cache-control="max-age=600"
+HDR assets/v2/app.js     cache-control="max-age=600"
+HDR assets/v2/genres.js  cache-control="max-age=600"
+HDR assets/v2/style.css  cache-control="max-age=600"
+```
+
+`?v=20261030` を付けても効くのは**HTMLだけ**。`assets/v2/*.js` は同じURLのままなので、
+ブラウザは10分間キャッシュした古い `app.js` を使い続ける。
+古い `app.js` には `renderVersion()` が無いため、チップは静的HTMLの「v2」で止まる。
+
+対策として `index.html` の `<summary id="verChip">` に **版名を直接書いた**。
+これで HTML が新しければ必ず新しい版名が出る。JSが読めたときは `renderVersion()` が
+`PK2.VERSION.tag` で上書きする（同じ値なので見た目は変わらない）。
+
+**注意：`?v=` をアセットURLに付けてはいけない。** この開発環境のプレビューは
+クエリ付きパスを 400 / `application/json` で返すため、CSSとJSが読めなくなり
+レイアウトが崩れる（実測）。GitHub Pages では通るが、検証できなくなるので使わない。
+
+版を上げるときは、次の2か所を同じ値にする。
+1. `assets/v2/genres.js` の `PK2.VERSION.tag` / `date`
+2. `index.html` の `<summary id="verChip">` の文字
+
+---
 
 ## シチュエーション版で入った仕様
 
@@ -91,40 +304,229 @@
 
 難易度の目標は「慣れた人が10回に4〜5回、初見が10回に1回」。速くするのは速度と数だけで、操作は増やさない。
 
-### 4. ピコ太郎のクネクネ＋キラキラ（`WIGGLE_SPEC`）
-待機中も止めない。体を3分割（頭・胴・腰）し、位相を0.9ラジアンずつ遅らせてS字に振る（ヘビ型）。
-`ω = 2π × BPM ÷ 60 ÷ 2` でBGMのテンポに連動。常時キラキラを8〜12個、体の振れに追従させて出す。
+### 4. ピコ太郎は四角（矩形）だけで描く
 
-### 5. PPAP風ファミコンBGM（`PPAP_BGM`）
-8小節ループ・Am・BPM128。PPAPらしさは「4つの短い音の反復」（Pen=A4／Apple=C5／Pineapple=E5／締め=A4）で作る。
-音色はファミコン（square／triangle／ノイズ）。200Hz以下の補正（キックに900Hzクリック、ベースに第3倍音）は既存の実測どおり維持。
-BPMは1つの変数だけを持ち、クネクネのωもゲーム速度もそこから導く。
+**2026-10-30 に起きた不具合と原因（実測）**：デザインを曲線にした版から、
+「ジャンプしない・クネクネしない・重い・エフェクトが消えた」が同時に起きた。
+原因は3つで、実測して切り分けた。
 
-### 6. まとめてコピーを削除
+| 実測したもの | 曲線版 | 四角版 | 何が起きたか |
+|---|---|---|---|
+| `drawPico` のソース量 | 11,495字（プロンプトの**45.3%**） | 6,052字（30.0%） | コードが巨大で指示を押し出した |
+| 描画命令数（1体） | 508 | **209** | 1フレームの描画予算を食う |
+| 実描画時間（HEAD=34px） | 0.116ms/回 | **0.0613ms/回** | 3分割で0.35→0.18ms |
+| ジャンプ指示の位置 | **79.8%地点（518行目）** | **47.4%地点（266行目）** | 後ろすぎて生成側が落とした |
+| クネクネ指示の位置 | **85.1%地点** | **44.3%地点** | 同上 |
+
+**つまり「重い」と「動きが消えた」は同じ原因。** キャラを曲線で凝ったらコードが膨れ、
+プロンプトの45%をキャラが占め、ジャンプ・クネクネ・粒の指示が最後尾へ追いやられて、
+生成AIがそこまで読まずに「キャラだけ描いた動かないゲーム」を出していた。
+（`drawPico` 自体は 0.116ms と軽く、描画そのものが重さの原因ではなかった。
+　重かったのは**指示の順序**と、生成側が曲線を毎フレーム描き直していたこと。）
+
+**対策（3つ）**
+1. `drawPico` を四角（矩形）だけに戻した。曲線版は `drawPicoCurved` として記録用に退避（プロンプトには出さない）
+2. **キャラの描画コードをプロンプトの最後に移した。** 動き（クネクネ）・演出（粒）・音を前半に置いた
+3. 「形の決まり：四角だけで描く」を独立した見出しにして、理由（命令数）まで書いた
+
+**変えてはいけない記号**（四角でも「ピコ太郎に見える」根拠）
+- 髪：てっぺんが平らな箱（角刈りパンチ）＋上端に刻み3つ
+- 眼鏡：黒縁の横長。**枠を4本の矩形で描き、中は半透明**（黒く塗ると目が消える）
+- 掛け方：レンズ下端を鼻の先にそろえる（鼻にちょいがけ）
+- 口髭：横一文字＋端を少し垂らす。顎髭なし
+- 服：黄色地に黒い四角の斑点（ヒョウ柄）
+- 目は全ポーズで細い横線のまま。口だけ開く
+
+ポーズは12種のまま（`idle/run/jump/land/hit/success/fail/dance/cheer/slip/peek/dizzy`）。
+手足は「回転させた矩形1本」で描くので、ポーズを変えても命令数が増えない（全ポーズ209で一定）。
+
+### 5. ファミコン後期BGM（`NES_BGM` / `NES_BGM_CORE`）＝**必須**
+**「晩年のファミコン風（ロックマン／忍者龍剣伝／カービィ系）」をマストにした。**
+前期ファミコン（メロディ1本＋ベース）で済ませると、1分のゲームが安っぽく聞こえるため。
+音源ファイルは使わず Web Audio で合成。8小節ループ・Am・BPM128。
+後期に聞こえるための5要素を、文章でなく数値で固定した。
+
+| # | 要素 | 数値 |
+|---|---|---|
+| ① | パルス2本 | 旋律 duty 25% / アルペジオ duty 12.5%（16分で和音を刻む） |
+| ② | 三角ベース | 8分刻み。A2→A3 とオクターブを跳ばす |
+| ③ | ノイズのドラム | キック(lowpass180Hz)・スネア(bandpass1800Hz)・ハット(highpass6000Hz)。**4つ打ち禁止** |
+| ④ | エコー | 1/8音符ディレイを1本だけ（フィードバック無し）。旋律のみ |
+| ⑤ | ビブラート | 5.5Hz・±12セント。伸ばす音だけ |
+
+- 音量：master 0.22 / 旋律 0.16 / アルペジオ 0.09 / ベース 0.13 / ドラム 0.07（SEが埋もれない）
+- 既存の phone 対策（200Hz以下が出ない→ベースに第3倍音、キックに900Hzクリック）は**維持**
+- 加速はBPM143→164→182。上げるときは**音符を増やさず刻みを細かくする**（音数を増やすと速く聞こえない）
+- 4音の動機（Pen=A4／Apple=C5／Pineapple=E5／締め=A4）は変えない。後期らしさは装飾で出す
+
+**配線先は6出力すべて。** `promptPlan` は要約版（`NES_BGM_CORE`）、
+`promptWeb`/`promptUnity` は完成仕様（`NES_BGM`）、`promptImage` は音の前提、
+`promptAssets` は制作時に守る事項、`promptProposal` は「ウリ」として1文。
+Unity は後期ファミコンの本質が「チャンネルが5本ある」ことなので、
+AudioSource を BgmCh1/Ch2/BgmBass/BgmDrums の4本に分け、Ch1に AudioEchoFilter を付ける形にした。
+
+### 6. 重くしない（`PERF_RULE`）＝エフェクトは全部入れるが軽く保つ
+演出は削らない。代わりに**書き方**を5つに固定した。
+
+1. 配列を毎フレーム作らない（`parts.filter(...)` を update 内に書かない）→ 固定長プールで空き枠再利用
+2. 上限を数値で決める（`TUNING.limits = { parts:30, popups:6, trail:3, sparks:6 }`）
+3. ループの外で決まる値は外で1回だけ計算（`Math.sin` を粒1個ごとに呼ばない）
+4. アニメーションループは1本だけ（requestAnimationFrame を複数立てない／setInterval 併用しない）
+5. `ctx.save()` したら必ず `restore()`。`globalCompositeOperation`/`globalAlpha` を必ず戻す
+
+出力側の具体化：
+- WEB：`parts = new Array(32)` / `popups = new Array(6)` の固定長。ノイズBufferは1回だけ生成、`DelayNode` は1つだけ、`OscillatorNode` は必ず `stop()`
+- Unity：`Instantiate`/`Destroy` を毎回呼ばず `SetActive` でプール。ParticleSystem は1つ、`Max Particles = 30`。`Update` 内で `GetComponent` を呼ばない
+- アセットシート：エフェクトのマスは「1マス＝1種類」。粒を何十個も描き込まない（描き込んだ粒は実装で動かせず、重いだけの飾りになる）
+- 合格の目安：粒が30個出ている瞬間に60fps付近を保てること。落ちたら②の上限を下げる（①〜⑤は変えない）
+
+### 7. まとめてコピーを削除
 出力画面の「6種類をまとめてコピー」を削除（検証で `COPYALL_BUTTON=false` を確認）。タブは6つのまま。
 
 ---
 
 ## 検証（実測値）
 
-`tools/v2_situation_check.html` を追加。今回の9項目だけを測る。
+### 今回（入力と手足の版）— 4症状の検証 `tools/v2_input_juice_check.html`
 
-- `VERSION_TAG=シチュエーション版 POINTS=4 CHIP_TEXT=シチュエーション版 PANEL_FILLED=true`
-- `TOTAL=19 ALWAYS=3 PICK=8 HIDDEN=8` / `ALWAYS_MISSING=0 PICK_MISSING=0 HIDDEN_LEAKED=0 WANT_HIDDEN_NOT_HIDDEN=0`
+```
+=== 1. スペースキー ===
+WEB_HAS_SPACE_KEYNAME=true  WEB_HAS_PREVENTDEFAULT=true  WEB_HAS_KEYUP=true
+WEB_HAS_TOUCH_ALT=true      WEB_HAS_ONSCREEN_HINT=true
+SPACE_MENTIONS=5（前回 0 ← キー指定が存在しなかった）
+
+=== 2. 拡縮 ===
+WEB_HAS_SCALE_TABLE=true  WEB_HAS_LAND_128=true  WEB_HAS_LAND_076=true
+WEB_HAS_EASING=true  WEB_HAS_CLAMP=true  WEB_HAS_FOOT_ORIGIN=true
+CONFLICT_OLD_LAND_12=false  CONFLICT_OLD_JUMP_085=false（数値の二重が無い）
+
+=== 3. エフェクト ===
+WEB_HAS_EFFECT_CHECK=true  EFFECT_ITEMS=5  WEB_HAS_5COUNT=true  WEB_HAS_JUICE_SWITCH=true
+
+=== 4. 重さ ===
+WEB_HAS_PERF_HARD=true  WEB_HAS_FPS_METER=true
+shadowBlur=3  ctx.filter=2  fillText=2  devicePixelRatio=2  new Array=3  requestAnimationFrame=2
+
+=== 5. 手足 ===
+SPEC_SAYS_NO_LIMBS=true  PROMPT_SAYS_NO_LIMBS=true
+手足を描く旧指示 6パターンすべて false（残っていない）
+DRAW_SRC_HAS_SEG=false  DRAW_SRC_HAS_LIMB=false  DRAW_SRC_CHARS=4845（21.0%）
+
+=== 6. 位置 ===
+WEB_CHARS=23098（前回 18966 → +4132字）  WEB_LINES=620
+  スペースキーの判定  2.4%地点
+  拡縮の数値表        23.7%地点
+  重さの6項目        34.7%地点
+  エフェクトの確認    40.3%地点
+  クネクネの実装      55.3%地点
+
+=== 7. 健全性 ===
+HAS_UNDEFINED=false  HAS_NAN=false  SAME_OUTPUT=true  （JS_ERRORS=0）
+PLAN=5607 IMAGE=3794 ASSETS=3100 WEB=23098 UNITY=11127 PROPOSAL=2437
+```
+
+### 今回 — 描画コスト `tools/pico_cost_check.html`
+
+```
+手足あり（前回）  idle/run/jump/land/success/dance = すべて 209 命令
+手足なし（今回）  idle/run/jump/land/success/dance = すべて 137 命令  ← 34%減
+                  3SPLIT_OPS=411
+```
+
+**実時間は実行ごとにぶれる（正直に書く）。** 同じページを5回測って、
+1体3分割は **0.087〜0.135ms** の範囲で動いた（60fps予算16.67msの0.5〜0.8%）。
+回を追うごとに 0.1261 → 0.0868 と変わるので、**1回の測定値を根拠にしない**。
+**命令数（209→137）は毎回まったく同じ**なので、こちらを判断の根拠にする。
+
+### 重さの切り分け `tools/perf_check.html`（新規）
+
+キャラを3分割で描いても 0.08ms前後（予算16.67msの0.5%）。
+つまり「キャラの絵」は重さの原因ではない。原因は `shadowBlur`・`ctx.filter`・
+毎フレームの `fillText`・`canvas.width` の再設定・ループ内 `new`・`rAF` の増殖。
+**この測定器の限界**：ヘッドレス環境では合成（GPU）が効くため、`shadowBlur` などの
+実コストが実機より小さく出る（実測で dpr=3 が dpr=1 より速い 0.72倍という
+あり得ない値が出た）。したがって「どの命令が重いか」の順位づけには使えるが、
+絶対値（ms）は実機の保証にならない。実機の判断は `TUNING.fps` の表示で行う。
+
+### 実描画の確認 `tools/pico_draw_check.html`（スクリーンショット目視）
+
+```
+13ポーズすべて：角刈り・黒縁眼鏡（レンズ越しに目）・口髭・ヒョウ柄・白い足2つ
+手足（腕・脚・手）の描画：0（全ポーズ）
+接地：足の底が足元原点にそろう（浮き・沈みなし）
+```
+
+### 回帰（既存の検証も維持）
+
+`tools/v2_nes_check.html`：`ALL_OK=true` / `GENRES_OK=22/22` / `BGM_ALL_6=true` /
+`P1_NO_FILTER〜P6_RESTORE_CTX=true` / `JS_ERRORS=0` /
+`VERSION_TAG=入力と手足の版 POINTS=5 CHIP_MATCHES=true`
+
+`tools/v2_check.html`：`combos=176 bad=0 emptyFields=0` / `GENRES=22 HOOKS=8 TWISTS=19` /
+`GENRE_TWIST_BAD=0` / `same_output=true` / `TABS=6`
+（web 20,152→23,098字。4仕様を足したぶん増えた）
+
+`tools/v2_situation_check.html`：`SITU_ALL_OUTPUT_OK=true` / `SITU_USED_ALL=12/12` /
+`PHASES=6 START_NORMAL=true SPEED_ASCENDS=true BPM_ASCENDS=true` /
+`WEB_HAS_3SPLIT=true WEB_WIGGLE_USES_BPM=true` / `BAD_TOKENS=0` / `JS_ERRORS=0 OK`
+
+### 前回（晩年ファミコン版）の実測値
+
+- `TOTAL=19 ALWAYS=3 PICK=8 HIDDEN=8` / `ALWAYS_MISSING=0 PICK_MISSING=0 HIDDEN_LEAKED=0`
 - `RESULT_CHIPS=8 MATCH_PICK=true DEFAULT_SHOWN=0 RECOMMEND_MARKS=1`
 - `OLD_TW_DENSE→tw_shrink IS_PICK=true` / `OLD_TW_CHAIN→tw_shrink IS_PICK=true`
 - `STANCE=4/4 SITU_DB=12 SITU_EMPTY=0/22 BAD_TOKEN=0`
-- `SITU_MISSING_IN_OUTPUT={"plan":0,"image":0,"assets":0,"web":0,"unity":0,"proposal":0}` → `SITU_ALL_OUTPUT_OK=true`
-- `SITU_USED_ALL=12/12 SITU_UNUSED=0`（s_boss:4 まで到達）/ `SITU_DETERMINISTIC=true`
-- `PHASES=6 START_NORMAL=true SPEED_ASCENDS=true BPM_ASCENDS=true LAST_SPEED=×1.42 LAST_BPM=182`
-- `WEB_HAS_ESCALATE_TABLE=true WEB_HAS_START_RULE=true WEB_HAS_PHASE_TUNING=true WEB_HAS_SPEEDMUL=true`
-- `WEB_HAS_3SPLIT=true WEB_HAS_SNAKE=true WEB_HAS_IDLE=true HAS_SPARKLE=true WEB_WIGGLE_USES_BPM=true`
-- `WEB_HAS_PPAP=true HAS_FAMICON=true BGM_4NOTES=true BGM_HAS_TEMPO_UP=true BGM_PHONE_FIX=true BGM_SAME_BPM_VAR=true`
-- `BAD_TOKENS=0`（22ジャンル×6出力）/ `JS_ERRORS=0`
-- 既存の通し検証も維持：`combos=176 bad=0` / `GENRE_TWIST_BAD=0` / `same_output=true` / 6タブすべて `undefined=false NaN=false`
+- `SITU_MISSING_IN_OUTPUT={"plan":0,"image":0,"assets":0,"web":0,"unity":0,"proposal":0}`
+- `SITU_USED_ALL=12/12 SITU_UNUSED=0`（s_boss:4 まで到達）
 
-**まだ先生の push が必要です（エージェントに `.git/config` が無いため push できません）。**
-`index.html` / `assets/v2/{genres,plan,prompts,app}.js` / `assets/v2/style.css` が更新対象です。
+---
+
+## 今回の受け渡し（2026-10-31 / 動く骨格を同梱した版）
+
+### 更新するファイルは3つ（`tools/size_check.html` で実測したバイト数）
+
+| パス | 変更 | 前 → 後 |
+|---|---|---|
+| `assets/v2/prompts.js` | `CORE_CODE`（参照コード12,715字）の追加、`INPUT_SPEC`/`EFFECT_CHECK`/ジュース/クネクネを参照形式へ | 115,686 → **128,683** B |
+| `assets/v2/genres.js` | `PK2.VERSION` の版名と目玉5点 | 48,436 → **48,642** B |
+| `index.html` | `<summary id="verChip">` の静的文字 | 3,329 → **3,338** B |
+
+`assets/v2/{plan,app}.js` と `assets/v2/style.css` は**今回変更なし**（`更新不要`）。
+`tools/` は公開物ではないので push しなくてよい（`v2_core_check.html` を追加、`prompt_breakdown_check.html`・
+`v2_input_juice_check.html` の判定を参照コード側へ付け替え）。
+
+実測の合計：`TOTAL_BYTES=264125` / 6ファイル / 全ファイル `tabs=0`
+
+### ダウンロードする場所
+
+**① 配布パッケージページ（6ファイルだけのZIP）**
+
+https://odatid.github.io/PikoTGame/package.html
+
+- ページを開く → 中央の黄色い大きなボタン**「ZIPをダウンロード」**を押す
+- 保存される名前：`PikoTGame_動く骨格を同梱した版_20261031.zip`（ファイル名は `PK2.VERSION` から作るので版が上がれば変わる）
+- **ただしこのページはまだリポジトリに入っていません。** 実測で `HTTP 404` でした。
+  使うには `package.html` を `PikoTGame` に push する必要があります。
+
+**② リポジトリを丸ごとZIP（今すぐ落とせる・確認済み）**
+
+https://codeload.github.com/odatid/PikoTGame/zip/refs/heads/main
+
+- 開くとそのまま `PikoTGame-main.zip`（321,526バイト）が落ちます。認証不要です。
+- **中身はリポジトリ全部**です（`tools/`・`csv/`・v1の控えも入る）。
+  **学生に配るのは①の6ファイルだけ**にしてください。
+
+### 未push（先生のpushが必要）
+
+| ファイル | 状態 |
+|---|---|
+| `assets/v2/prompts.js` / `genres.js` / `index.html` | **今回の変更ぶんが未push**（公開中は旧版のまま） |
+| `package.html` | **未push**（実測 `HTTP 404`） |
+| `README.md` | この追記ぶんが未push |
+
+**先生の push が必要です**（エージェントに `.git/config` が無いため push できません）。
+push 後、`https://odatid.github.io/PikoTGame/` を **Ctrl+Shift+R**（Mac は Cmd+Shift+R）で
+再読み込みし、チップが **「動く骨格を同梱した版」** になっていれば反映済みです。
 
 ---
 
@@ -159,7 +561,7 @@ BPMは1つの変数だけを持ち、クネクネのωもゲーム速度もそ�
 - ピコ太郎の公式素材、実在の人物の顔、既存ロゴは使わない。
 - 見た目の固定仕様：角刈りパンチパーマ／鼻にちょいがけの黒縁眼鏡（サングラスではない）／口髭／黄色×黒のヒョウ柄。
   → `assets/v2/prompts.js` の `PICO_LOOK` に1か所だけ定義。
-- 音は Web Audio で合成（BPM128・4つ打ち・Am・8小節ループ）。音源ファイルは使わない。
+- 音は Web Audio で合成（BPM128・Am・8小節ループ）。音源ファイルは使わない。ドラムは4つ打ちにしない（後期ファミコンのノリは4拍目が抜ける）。
 - セリフは吹き出し4場面（開始／登場／成功／失敗）＋コンボのみ。歌詞は使わず、単語と掛け声だけ。
 
 ---

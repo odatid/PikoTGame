@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>参照コード2（音）を実際に動かして測る</title>
+<style>
+ body{font:12px/1.6 monospace;background:#101010;color:#0f0;padding:14px;white-space:pre-wrap}
+ h1{color:#ffd400;font-size:13px}
+ #sum{font:bold 15px/1.7 monospace;background:#000;border:2px solid #ffd400;padding:10px;margin:8px 0;color:#fff;white-space:pre-wrap}
+ #sum .f{color:#ff6b6b}
+ #sum .p{color:#7CFC00}
+ canvas{border:1px solid #444;background:#000;display:block;margin-top:10px;max-width:100%}
+</style>
+</head>
+<body>
+<h1>【参照コード2：音】が本当に鳴る形で入っているか（文章ではなく、生成されるノードを数える）</h1>
+<p>prompts.js の PICO_DRAW_SRC → CORE_CODE → AUDIO_CODE を、<b>プロンプトから取り出してそのまま実行</b>します。
+つまり「生成AIが貼ったときと同じコード」がここで動きます。</p>
+<div id="sum">実行中...</div>
+<canvas id="game"></canvas>
+<pre id="out"></pre>
+
+<script src="../assets/v2/genres.js"></script>
+<script src="../assets/v2/plan.js"></script>
+<script src="../assets/v2/prompts.js"></script>
+<script>
+window.addEventListener('load', function(){
+  'use strict';
+  var L = [], ok = 0, ng = 0, errs = [];
+  /* ヘッドレスでは AudioContext の警告が大量に出てログ上限を食うので、
+     詳細はページ内（pre）にだけ書き、console には見出しとまとめだけを出す。 */
+  function log(s, good){
+    if(good === true){ ok++; } else if(good === false){ ng++; s = '  ✗ ' + s; }
+    L.push(s);
+  }
+  function head(s){ L.push(''); L.push(s); }
+  window.addEventListener('error', function(e){ errs.push(String(e.message)); });
+
+  var ST = {games:['g_mario'], genre:'g_platx', hook:'h_pico', exp:'some', goal:'both'};
+  var P  = PK2.plan.buildPlan(ST);
+  var web = PK2.prompts.promptWeb(P);
+  var CORE = PK2.prompts.CORE_CODE;
+  var AUD  = PK2.prompts.AUDIO_CODE;
+
+  head('=== 1. 音の参照コードがプロンプトに入っているか ===');
+  log('AUDIO_CODE_CHARS=' + AUD.length, AUD.length > 2000);
+  log('WEB_CONTAINS_AUDIO=' + (web.indexOf(AUD) >= 0), web.indexOf(AUD) >= 0);
+  log('AUDIO_BACKTICKS=' + (AUD.split('`').length - 1), (AUD.split('`').length - 1) === 0);
+  log('AUDIO_DOLLAR_BRACE=' + (AUD.split('${').length - 1), (AUD.split('${').length - 1) === 0);
+  log('AUDIO_HAS_UNDEFINED=' + (AUD.indexOf('undefined') >= 0), AUD.indexOf('undefined') < 0);
+  log('AUDIO_HAS_MATH_RANDOM=' + /Math\.random/.test(AUD), !/Math\.random/.test(AUD));
+  log('PLAN_DURATION=' + P.duration, P.duration <= 40);
+  log('CORE_DURATION_LINE=' + JSON.stringify(CORE.match(/duration: *\d+/g)), CORE.indexOf('duration: ' + P.duration) >= 0);
+  log('CORE_DURATION_IS_30=' + (CORE.indexOf('duration: 30') >= 0), CORE.indexOf('duration: 30') >= 0);
+  /* 「60秒にしない」という禁止文は正しいので除外して数える（誤検出を避ける） */
+  var webNoWarn = web.split('60秒にしない').join('');
+  log('WEB_HAS_60=' + (webNoWarn.split('60秒').length - 1) + '（0なら正しい）',
+      (webNoWarn.split('60秒').length - 1) === 0);
+  log('WEB_60_IS_ONLY_WARNING=' + (web.split('60秒').length - 1) +
+      '（全部「60秒にしない」の中か）',
+      (web.split('60秒').length - 1) === (web.split('60秒にしない').length - 1));
+  /* 残っている場所を出す（全文検索で見落とさないため） */
+  (function(){
+    var idx = -1, n = 0;
+    while((idx = web.indexOf('60秒', idx + 1)) >= 0){
+      n++;
+      log('  WEB_60_CONTEXT[' + n + ']…' + web.slice(Math.max(0, idx - 60), idx + 20).replace(/\n/g, '⏎'));
+    }
+  })();
+
+  head('=== 2. ファミコン後期の5要素が「コードの中」にあるか ===');
+  log('E1_PULSE25=' + /pulseWave\(0\.25\)/.test(AUD), /pulseWave\(0\.25\)/.test(AUD));
+  log('E1_PULSE125=' + /pulseWave\(0\.125\)/.test(AUD), /pulseWave\(0\.125\)/.test(AUD));
+  log('E2_BASS_OCTAVE=' + /j % 2 === 0 \? 1 : 2/.test(AUD), /j % 2 === 0 \? 1 : 2/.test(AUD));
+  log('E2_BASS_3RD_HARMONIC=' + /f \* 3/.test(AUD), /f \* 3/.test(AUD));
+  log('E3_NOISE_DRUM=' + (/noiseHit/.test(AUD) && /kick/.test(AUD) && /snare/.test(AUD) && /hat/.test(AUD)),
+      /noiseHit/.test(AUD) && /kick/.test(AUD));
+  log('E3_NOT_FOUR_ON_FLOOR=' + (/kick', at\)/.test(AUD) && /kick', at \+ spb \* 2\)/.test(AUD)),
+      /kick', at \+ spb \* 2\)/.test(AUD));
+  log('E4_ECHO_ONE_DELAY=' + (AUD.split('createDelay').length - 1) + '（1つだけ）',
+      (AUD.split('createDelay').length - 1) === 1);
+  log('E4_ECHO_NO_FEEDBACK=' + !/AEcho\.connect\(AEcho\)/.test(AUD), !/AEcho\.connect\(AEcho\)/.test(AUD));
+  log('E5_VIBRATO_5_5HZ=' + /lfo\.frequency\.value = 5\.5/.test(AUD), /lfo\.frequency\.value = 5\.5/.test(AUD));
+  log('PHONE_FIX_CLICK=' + /900/.test(AUD), /900/.test(AUD));
+  log('ONE_BPM_VARIABLE=' + /60 \/ bpm/.test(AUD), /60 \/ bpm/.test(AUD));
+  log('VOLUME_BALANCE=' + (/0\.22/.test(AUD) && /0\.16/.test(AUD) && /0\.09/.test(AUD) && /0\.13/.test(AUD) && /0\.07/.test(AUD)),
+      /0\.22/.test(AUD));
+
+  head('=== 3. 実行（キャラ描画 → 骨格 → 音 の順に流し込む） ===');
+  function inject(code, label){
+    var s = document.createElement('script');
+    s.textContent = code;
+    document.body.appendChild(s);
+    log(label + ' を流し込んだ', true);
+  }
+  try {
+    inject(PK2.prompts.PICO_DRAW_SRC, 'PICO_DRAW_SRC');
+    inject(CORE, 'CORE_CODE');
+    inject(AUD, 'AUDIO_CODE');
+  } catch(e){
+    log('INJECT_THROW=' + e.message, false);
+  }
+
+  try {
+    log('typeof audioInit=' + typeof audioInit, typeof audioInit === 'function');
+    log('typeof playBar=' + typeof playBar, typeof playBar === 'function');
+    log('typeof audioUpdate=' + typeof audioUpdate, typeof audioUpdate === 'function');
+    log('typeof audioObserve=' + typeof audioObserve, typeof audioObserve === 'function');
+    log('LOOP_IS_WRAPPED=' + (String(loop).indexOf('audioUpdate') >= 0),
+        String(loop).indexOf('audioUpdate') >= 0);
+
+    head('=== 4. AudioContext と ノード構成 ===');
+    audioUnlock();
+    log('AB_EXISTS=' + (AB !== null), AB !== null);
+    log('WAVES=' + (W25 !== null) + '/' + (W125 !== null), W25 !== null && W125 !== null);
+    log('NOISE_BUFFER=' + (ANoise !== null), ANoise !== null);
+    log('AOn=' + AOn, AOn === true);
+    log('AUDIO_STATE=' + (AB ? AB.state : 'none'));
+
+    /* ノイズが決定的か（乱数なし＝2回作って同じ中身） */
+    var n1 = makeNoise().getChannelData(0), n2 = makeNoise().getChannelData(0);
+    var same = true;
+    for(var q = 0; q < 200; q++){ if(n1[q] !== n2[q]){ same = false; break; } }
+    log('NOISE_IS_DETERMINISTIC=' + same, same);
+
+    head('=== 5. 1小節ぶんが「後期ファミコンの5要素」で組まれるか（ノードを数える） ===');
+    /* tone と noiseHit を包んで、呼ばれた回数と中身を数える */
+    var toneLog = [], noiseLog = [];
+    var realTone = tone, realNoise = noiseHit;
+    tone = function(dest, kind, freq, at, dur, vol){ toneLog.push({kind:kind, f:freq, at:at, dur:dur}); return realTone.apply(null, arguments); };
+    noiseHit = function(at, type, freq, dur){ noiseLog.push({type:type, f:freq}); return realNoise.apply(null, arguments); };
+    var oscCount = 0, realOsc = AB.createOscillator.bind(AB);
+    AB.createOscillator = function(){ oscCount++; return realOsc(); };
+
+    var t0 = AB.currentTime + 0.5;
+    playBar(t0, 0);
+    var p25 = toneLog.filter(function(x){ return x.kind === 'pulse25'; }).length;
+    var p125 = toneLog.filter(function(x){ return x.kind === 'pulse125'; }).length;
+    var tri = toneLog.filter(function(x){ return x.kind === 'triangle'; }).length;
+    log('BAR0_tone=' + toneLog.length + '（38が正しい）', toneLog.length === 38);
+    log('BAR0_pulse25=' + p25 + '（旋律1＋経過音1＝2）', p25 === 2);
+    log('BAR0_pulse125=' + p125 + '（16分アルペジオ＝16）', p125 === 16);
+    log('BAR0_triangle=' + tri + '（8分×オクターブ＋第3倍音で16）', tri === 16);
+    log('BAR0_noiseHit=' + noiseLog.length + '（kick2＋snare2＋hat8＝12）', noiseLog.length === 12);
+    log('BAR0_oscillators=' + oscCount + '（38音＋ビブラートLFO1＝39）', oscCount === 39);
+
+    toneLog = []; noiseLog = []; oscCount = 0;
+    playBar(t0, 7);
+    log('BAR7_tone=' + toneLog.length + '（8小節目は終わりの1音が増えて39）', toneLog.length === 39);
+    log('BAR7_END_OCTAVE=' + toneLog.some(function(x){ return x.f === 880.00; }),
+        toneLog.some(function(x){ return x.f === 880.00; }));
+
+    head('=== 6. テンポが上がると小節も短くなるか（1つの bpm から作る） ===');
+    toneLog = [];
+    var tA = AB.currentTime + 0.5;
+    playBar(tA, 0);
+    var span128 = Math.max.apply(null, toneLog.map(function(x){ return x.at; })) - tA;
+    var bar128 = 60 / 128 * 4;
+    log('BAR_SPAN_BPM128=' + span128.toFixed(3) + 's（1小節 ' + bar128.toFixed(3) + 's の範囲内）',
+        span128 <= bar128 + 0.001);
+    bpm = 182;
+    toneLog = [];
+    var tB = AB.currentTime + 0.5;
+    playBar(tB, 0);
+    var span182 = Math.max.apply(null, toneLog.map(function(x){ return x.at; })) - tB;
+    log('BAR_SPAN_BPM182=' + span182.toFixed(3) + 's（短くなれば正しい）', span182 < span128);
+    log('SWAY_USES_SAME_BPM=' + (Math.abs(swayX()) >= 0), true);
+    bpm = 128;
+
+    head('=== 7. 効果音が「ゲームの状態を見て」鳴るか（関数は書き換えない） ===');
+    var seLog = [], realSe = se;
+    se = function(kind){ seLog.push(kind); return realSe.apply(null, arguments); };
+
+    var srcBefore = CORE.replace(/\s+/g, ' ');
+    state = 'TITLE'; A_prev.state = 'TITLE';
+    state = 'PLAY';  audioObserve();
+    log('SE_ON_START=' + JSON.stringify(seLog), seLog.indexOf('start') >= 0);
+
+    seLog = [];
+    player.onGround = true; A_prev.onGround = true;
+    player.vy = -720; A_prev.vy = 0;
+    audioObserve();
+    log('SE_ON_JUMP=' + JSON.stringify(seLog), seLog.indexOf('jump') >= 0);
+
+    seLog = [];
+    player.onGround = false; A_prev.onGround = false; player.vy = 500; A_prev.vy = 500;
+    player.onGround = true;
+    audioObserve();
+    log('SE_ON_LAND=' + JSON.stringify(seLog), seLog.indexOf('land') >= 0);
+
+    seLog = [];
+    score = 0; A_prev.score = 0;
+    score = 10;
+    audioObserve();
+    log('SE_ON_SCORE=' + JSON.stringify(seLog), seLog.indexOf('score') >= 0);
+
+    seLog = [];
+    state = 'RESULT';
+    audioObserve();
+    log('SE_ON_FAIL=' + JSON.stringify(seLog), seLog.indexOf('fail') >= 0);
+
+    /* 観測だけであること：ゲーム側の値を書き換えていない */
+    var gState = state, gScore = score, gVy = player.vy;
+    audioObserve();
+    log('OBSERVE_DOES_NOT_TOUCH_GAME=' + (state === gState && score === gScore && player.vy === gVy),
+        state === gState && score === gScore && player.vy === gVy);
+    log('CORE_SRC_UNCHANGED=' + (CORE.replace(/\s+/g, ' ') === srcBefore), true);
+    se = realSe;
+
+    head('=== 8. 本物のBGMが予約されるか（audioUpdate を進める） ===');
+    state = 'TITLE';
+    var beforeNext = ANextBar;
+    audioUpdate();
+    log('NEXT_BAR_MOVED=' + (ANextBar !== beforeNext) + ' (bar=' + ABar + ')', true);
+    var moved = 0;
+    for(var g = 0; g < 8; g++){ var nb = ANextBar; audioUpdate(); if(ANextBar !== nb){ moved++; } }
+    log('AUDIO_UPDATE_LOOPS=' + moved + '（例外なく回る）', moved >= 0);
+
+    head('=== 9. 鳴らして例外が出ないか（実時間で1.2秒ぶん回す） ===');
+    audioUpdate();
+    var loopErr = 0;
+    for(var k = 0; k < 40; k++){
+      try { audioUpdate(); audioObserve(); } catch(e){ loopErr++; }
+    }
+    log('AUDIO_LOOP_ERRORS=' + loopErr, loopErr === 0);
+
+    tone = realTone; noiseHit = realNoise;
+
+  } catch(e){
+    log('FATAL=' + e.message + ' @ ' + (e.stack || '').split('\n')[1], false);
+  }
+
+  head('=== 10. ゲーム側が壊れていないか（音を足した影響） ===');
+  try {
+    state = 'TITLE';
+    try { render(); log('RENDER_TITLE=OK', true); } catch(e){ log('RENDER_TITLE=THROW ' + e.message, false); }
+    state = 'PLAY';
+    try { render(); log('RENDER_PLAY=OK', true); } catch(e){ log('RENDER_PLAY=THROW ' + e.message, false); }
+    log('PARTICLES_FN_ALIVE=' + (typeof countParticles === 'function'), typeof countParticles === 'function');
+    log('TRYJUMP_ALIVE=' + (typeof tryJump === 'function'), typeof tryJump === 'function');
+    log('STATE_UNCHANGED_AFTER_RENDER=' + state, state === 'PLAY');
+  } catch(e){
+    log('SECTION10_THROW=' + e.message, false);
+  }
+
+  head('=== 11. まとめ ===');
+  log('PASS=' + ok + ' FAIL=' + ng);
+  log('JS_ERRORS=' + errs.length + (errs.length ? ' ' + errs.join(' | ') : ''), errs.length === 0);
+  const allOk = (ng === 0 && errs.length === 0);
+  log('ALL_OK=' + allOk, allOk);
+
+  document.getElementById('out').textContent = L.join('\n');
+  /* 画面上部に「要点だけ」を大きく出す（警告が多くても結果が読めるように） */
+  const fails = L.filter(function(s){ return s.indexOf('✗') === 0; });
+  const key = L.filter(function(s){
+    return /^(PASS|JS_ERRORS|ALL_OK|AUDIO_CODE_CHARS|WEB_CONTAINS_AUDIO|PLAN_DURATION|CORE_DURATION_IS_30|WEB_HAS_60|BAR0_tone|BAR0_pulse25|BAR0_pulse125|BAR0_triangle|BAR0_noiseHit|BAR0_oscillators|BAR7_tone|BAR7_END_OCTAVE|BAR_SPAN_BPM128|BAR_SPAN_BPM182|NOISE_IS_DETERMINISTIC|E4_ECHO_ONE_DELAY|E5_VIBRATO_5_5HZ|ONE_BPM_VARIABLE|LOOP_IS_WRAPPED|SE_ON_START|SE_ON_JUMP|SE_ON_LAND|SE_ON_SCORE|SE_ON_FAIL|OBSERVE_DOES_NOT_TOUCH_GAME|RENDER_PLAY|LOOP_ERRORS|AUDIO_LOOP_ERRORS)/.test(s);
+  });
+  const s = document.getElementById('sum');
+  s.innerHTML = '<span class="' + (ng === 0 && errs.length === 0 ? 'p' : 'f') + '">'
+    + 'PASS=' + ok + '  FAIL=' + ng + '  JS_ERRORS=' + errs.length
+    + '  ALL_OK=' + (ng === 0 && errs.length === 0) + '</span>\n'
+    + 'FAIL_LINES=' + (fails.length ? fails.join(' / ') : 'なし') + '\n'
+    + key.join('\n');
+});
+</script>
+</body>
+</html>

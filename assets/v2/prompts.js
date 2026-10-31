@@ -631,7 +631,7 @@ ${plan.again || '（未設定）'}`;
    叩いた分だけ曲に層が増える形にして、手で曲を作っている状態にする。
    ------------------------------------------------------------------ */
 const MUSIC_SPEC = `4本のレーンは、4つの楽器。叩いた分だけ曲に層が増える。
-・BPM128・4拍子。1小節＝1.875秒。60秒＝32小節ぶん。
+・BPM128・4拍子。1小節＝1.875秒。30秒＝16小節ぶん。
 ・ノーツは 1小節あたり各レーン1個（計4個）。8小節で1周（15秒）。
 ・レーン1（左）：キック。低い「ドン」。音量 0 → 0.35 → 0.70 → 1.00 の4段階。
 ・レーン2：スネア。乾いた「タン」。
@@ -670,7 +670,7 @@ function musicWebBlock(plan){
     + `・音量段階は gain = [0, 0.10, 0.20, 0.32][layers[lane]]。0なら鳴らさない。\n`
     + `・ヒットで layers[lane] を +1（最大3）、ミスで -1（最小0）。\n`
     + `・**ノーツ密度：1小節あたり各レーン1個（計4個）。**BPM128・4拍子なので1小節＝1.875秒。\n`
-    + `  60秒＝32小節。8小節（15秒）で1周。密度を上げると層が0に戻らず、山場が来なくなるので上げない。\n`
+    + `  30秒＝16小節。8小節（15秒）で1周。密度を上げると層が0に戻らず、山場が来なくなるので上げない。\n`
     + `・毎小節、layers が1以上のレーンだけを鳴らし続ける（鳴っている層が耳で分かる）。\n`
     + `・**山場＝最初に4レーンが同時に鳴った小節。1プレイに1回だけ。**\n`
     + `  spikeFired が false のとき、4レーン全部の layers が1以上になった小節で発火し、spikeFired = true にする。\n`
@@ -752,7 +752,7 @@ canvas.height = H;
 
 var TUNING = {
   juice: true,           /* false にすると演出が全部止まる（発表で並べて見せる） */
-  duration: 60,          /* ★上の【仕様（変更禁止）】の1プレイ秒数に合わせて書き換える */
+  duration: 30,          /* ★この値が1プレイ秒数。30秒で確定（30秒か、長くても40秒。60秒にしない） */
   gravity: 2100,
   jumpV: 720,
   limits: { parts: 30, popups: 6 },
@@ -1117,7 +1117,8 @@ registerInput();
 requestAnimationFrame(loop);`;
 
 /* 参照コードを、プロンプトの中で「これを貼れ」と言い切るブロックにする。
-   秒数だけは企画ごとに違うので、ここで名指しする（「60を30に変えろ」と言い切る）。 */
+   秒数は参照コード側に30秒で書いてあり、データ側（全22ジャンル）も30秒なので、
+   **書き換えは発生しない**。40秒にしたい企画が出たときだけ、その1数字を名指しする。 */
 function coreBlock(plan){
   return `【参照コード：この1本をそのまま使う（ここが本体。ここから作り足す）】
 以下は、入力・ジャンプ・粒・拡縮・揺れ・止め・数字・画面遷移・ループが**もう全部つながった完成品**です。
@@ -1126,14 +1127,213 @@ function coreBlock(plan){
 ・\`updateGame(dt)\` … 敵・当たり判定・得点（空のままでも動く）
 ・\`drawGameObjects()\` … 敵・ゴール・アイテムの描画（空のままでも動く）
 
-**書き換えてよいのは、次の2つだけです（それ以外の数値と名前は1文字も変えない）**
-1. \`duration: 60\` → \`duration: ${plan.duration}\`（この企画は${plan.duration}秒）
-2. \`<canvas id="game">\` を HTML に置く（id は game。変えない）
+**書き換えてよいのは、次の1つだけです（それ以外の数値と名前は1文字も変えない）**
+1. \`<canvas id="game">\` を HTML に置く（id は game。変えない）
+
+・1プレイの秒数は \`duration: ${plan.duration}\` で、**もう参照コードに入っています。書き換えません**
+  （この企画は${plan.duration}秒。30秒か、長くても40秒。**60秒にしない**）
 
 **この骨格を「参考にして新しく書く」のではなく、この文字列を貼る。** それが唯一の合格条件です。
 
 \`\`\`js
 ${CORE_CODE}
+\`\`\``;
+}
+
+/* ------------------------------------------------------------------
+   参照コード2（AUDIO_CODE）。
+   2026-10-31 の実測で分かった矛盾：
+     参照コード（CORE_CODE）には音が1行も入っていないのに「これを貼れ」と言っていた。
+     そのため「貼った骨格にBGMを足せ」という二重の指示になり、
+     実際に BGM が実装されない（＝「BGMの指示が消えた」に見える）原因になっていた。
+   そこで音も**貼るコードとして同梱する**。設計の理由（なぜ後期ファミコンか）は
+   これまで通り【BGM：ファミコン後期】の文章側に残す。
+   CORE_CODE を書き換えずに音を足すため、loop を包んで（包む＝wrapper）、
+   ・毎フレーム audioUpdate()（次の小節を先読みして予約）
+   ・毎フレーム audioObserve()（状態と vy を見て SE を鳴らす）
+   を差し込む。ゲーム側の関数を1行も書き換えない。
+   実測（tools/v2_audio_code_check.html）: 実ブラウザで音が出る／例外0。
+   ------------------------------------------------------------------ */
+const AUDIO_CODE = `/* ===================================================================
+   【参照コード2：音】これもそのまま貼る（1行も書き換えない）
+   音源ファイルは使わない。Web Audio で合成する（ファミコン後期の5要素）。
+   ① パルス2本（旋律 duty 25% / アルペジオ duty 12.5%）
+   ② 三角ベースを8分で刻み、オクターブを跳ばす＋第3倍音を重ねる（phone 対策）
+   ③ ノイズのドラム（キック1・3拍目／スネア2・4拍目／ハット8分＝4つ打ちにしない）
+   ④ エコー（1/8音符ディレイを1本だけ・フィードバック無し）
+   ⑤ ビブラート（5.5Hz・±12セント）
+   乱数は使わない。ノイズも決まった式で作るので、鳴る音は毎回同じ。
+   ゲーム側の関数は書き換えない（loop を包んで、音だけを横から足す）。
+   =================================================================== */
+var AB = null, ABus = null, ACh1 = null, ACh2 = null, ABass = null, ADrum = null;
+var AEcho = null, ANoise = null, W25 = null, W125 = null;
+var AOn = false, ANextBar = 0, ABar = 0;
+var A_prev = { state: '', vy: 0, onGround: true, score: -1 };
+
+var CHORD = [            /* 8小節で1周。変えない（Am Am F G Am F G Am） */
+  [220.00, 261.63, 329.63], [220.00, 261.63, 329.63],
+  [174.61, 220.00, 261.63], [196.00, 246.94, 293.66],
+  [220.00, 261.63, 329.63], [174.61, 220.00, 261.63],
+  [196.00, 246.94, 293.66], [220.00, 261.63, 329.63]
+];
+var ROOT = [110.00, 110.00, 87.31, 98.00, 110.00, 87.31, 98.00, 110.00];
+var MEL  = [440.00, 523.25, 659.25, 440.00];   /* Pen / Apple / Pineapple / 締め */
+
+function pulseWave(duty){                        /* duty 25% と 12.5% を波形で作る */
+  var n = 32, re = new Float32Array(n), im = new Float32Array(n);
+  for(var k = 1; k < n; k++){ im[k] = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty); }
+  return AB.createPeriodicWave(re, im);
+}
+function makeNoise(){                            /* 乱数なしでノイズを作る（毎回同じ音） */
+  var len = Math.floor(AB.sampleRate * 0.5);
+  var buf = AB.createBuffer(1, len, AB.sampleRate);
+  var d = buf.getChannelData(0), s = 12345;
+  for(var i = 0; i < len; i++){
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    d[i] = ((s / 0x7fffffff) * 2 - 1) * 0.6;
+  }
+  return buf;
+}
+function audioInit(){
+  if(AB){ if(AB.state === 'suspended'){ AB.resume(); } return; }
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC){ return; }
+  AB = new AC();
+  ABus = AB.createGain();  ABus.gain.value  = 0.22; ABus.connect(AB.destination);
+  ACh1 = AB.createGain();  ACh1.gain.value  = 0.16; ACh1.connect(ABus);
+  ACh2 = AB.createGain();  ACh2.gain.value  = 0.09; ACh2.connect(ABus);
+  ABass = AB.createGain(); ABass.gain.value = 0.13; ABass.connect(ABus);
+  ADrum = AB.createGain(); ADrum.gain.value = 0.07; ADrum.connect(ABus);
+  AEcho = AB.createDelay(1.0); AEcho.delayTime.value = 0.234;   /* 1/8音符（BPM128） */
+  var eg = AB.createGain(); eg.gain.value = 0.30;
+  ACh1.connect(AEcho); AEcho.connect(eg); eg.connect(ABus);      /* エコーは ch1 だけ */
+  W25 = pulseWave(0.25); W125 = pulseWave(0.125);
+  ANoise = makeNoise();                        /* ★ノイズのBufferは開始時に1回だけ作る */
+  AOn = true; ANextBar = AB.currentTime + 0.10; ABar = 0;
+}
+function audioUnlock(){ audioInit(); if(AB && AB.state === 'suspended'){ AB.resume(); } }
+window.addEventListener('keydown', audioUnlock, {passive:false});
+window.addEventListener('pointerdown', audioUnlock, {passive:false});
+
+function tone(dest, kind, freq, at, dur, vol){
+  if(!AB){ return; }
+  var o = AB.createOscillator(), g = AB.createGain();
+  if(kind === 'pulse25'){ o.setPeriodicWave(W25); }
+  else if(kind === 'pulse125'){ o.setPeriodicWave(W125); }
+  else { o.type = kind; }
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), at + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g); g.connect(dest);
+  o.start(at); o.stop(at + dur + 0.02);          /* ★鳴り終わったら必ず stop する */
+  if(dur >= 0.25){                                /* 伸ばす音だけビブラート */
+    var lfo = AB.createOscillator(), lg = AB.createGain();
+    lfo.frequency.value = 5.5; lg.gain.value = freq * 0.0069;   /* ±12セント */
+    lfo.connect(lg); lg.connect(o.frequency);
+    lfo.start(at); lfo.stop(at + dur + 0.02);
+  }
+}
+function noiseHit(at, type, freq, dur){
+  if(!AB || !ANoise){ return; }
+  var src = AB.createBufferSource(), f = AB.createBiquadFilter(), g = AB.createGain();
+  src.buffer = ANoise;
+  f.type = type; f.frequency.value = freq;
+  g.gain.setValueAtTime(0.9, at);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  src.connect(f); f.connect(g); g.connect(ADrum);
+  src.start(at); src.stop(at + dur + 0.02);
+}
+function drum(kind, at){
+  if(kind === 'kick'){
+    tone(ADrum, 'sine', 120, at, 0.10, 0.55);
+    tone(ADrum, 'square', 900, at, 0.02, 0.12);   /* phone で蹴りが聞こえるクリック */
+    noiseHit(at, 'lowpass', 180, 0.06);
+  } else if(kind === 'snare'){
+    noiseHit(at, 'bandpass', 1800, 0.09);
+  } else {
+    noiseHit(at, 'highpass', 6000, 0.03);
+  }
+}
+function playBar(at, bar){
+  var spb = 60 / bpm;                             /* 1拍の秒数。bpm はゲーム側と同じ変数 */
+  var c = CHORD[bar], m = MEL[bar % 4];
+  tone(ACh1, 'pulse25', m, at, spb * 0.90, 0.90);
+  tone(ACh1, 'pulse25', m * 1.0595, at + spb * 0.50, 0.06, 0.45);   /* 16分の経過音 */
+  for(var i = 0; i < 16; i++){                    /* ② アルペジオを16分で刻む */
+    tone(ACh2, 'pulse125', c[i % 3], at + spb * i / 4, 0.06, 0.70);
+  }
+  for(var j = 0; j < 8; j++){                     /* ② 8分・オクターブ跳び＋第3倍音 */
+    var f = ROOT[bar] * (j % 2 === 0 ? 1 : 2);
+    tone(ABass, 'triangle', f, at + spb * j / 2, 0.10, 0.80);
+    tone(ABass, 'triangle', f * 3, at + spb * j / 2, 0.08, 0.10);
+  }
+  drum('kick', at); drum('snare', at + spb);      /* ③ 4つ打ちにしない */
+  drum('kick', at + spb * 2); drum('snare', at + spb * 3);
+  for(var h = 0; h < 8; h++){ drum('hat', at + spb * h / 2); }
+  if(bar === 7){                                  /* 8小節目の最後：1オクターブ上で「終わり」 */
+    tone(ACh1, 'pulse25', 880.00, at + spb * 2, spb * 0.90, 0.90);
+  }
+}
+function audioUpdate(){                           /* 次の小節を先読みして予約する */
+  if(!AOn || !AB){ return; }
+  var now = AB.currentTime;
+  while(ANextBar < now + 0.20){
+    playBar(ANextBar, ABar);
+    ABar = (ABar + 1) % 8;
+    ANextBar += (60 / bpm) * 4;                   /* 1小節＝4拍。加速すれば自動で追従 */
+  }
+}
+function se(kind){
+  if(!AOn || !AB){ return; }
+  var t = AB.currentTime + 0.001;
+  if(kind === 'start'){ tone(ACh1, 'pulse25', 392, t, 0.15, 0.50); }
+  else if(kind === 'jump'){ tone(ACh1, 'pulse25', 660, t, 0.06, 0.45); }
+  else if(kind === 'land'){ tone(ACh1, 'triangle', 140, t, 0.07, 0.55); }
+  else if(kind === 'score'){ tone(ACh1, 'pulse25', 990, t, 0.05, 0.40); }
+  else if(kind === 'combo'){
+    tone(ACh1, 'pulse25', 1047, t, 0.05, 0.45);
+    tone(ACh1, 'pulse25', 1047, t + 0.05, 0.05, 0.45);
+  }
+  else if(kind === 'fail'){
+    tone(ACh1, 'sawtooth', 220, t, 0.22, 0.50);
+    tone(ACh1, 'sawtooth', 165, t + 0.06, 0.16, 0.40);
+  }
+}
+/* SE はゲームの関数を書き換えずに、状態を見て鳴らす（観測するだけ） */
+function audioObserve(){
+  if(state !== A_prev.state){
+    if(state === 'PLAY'){ se('start'); }
+    if(state === 'RESULT'){ se('fail'); }
+    A_prev.state = state;
+  }
+  if(player.vy < -600 && A_prev.vy >= -600){ se('jump'); }
+  if(player.onGround && !A_prev.onGround){ se('land'); }
+  if(score !== A_prev.score){
+    if(A_prev.score >= 0){ se('score'); }
+    A_prev.score = score;
+  }
+  A_prev.vy = player.vy; A_prev.onGround = player.onGround;
+}
+/* loop を包む（音だけを横から足す。ゲームの処理順は変えない） */
+var loopBase = loop;
+loop = function(now){
+  audioUpdate();
+  audioObserve();
+  loopBase(now);
+};`;
+
+function audioBlock(plan){
+  return `【参照コード2：音（BGMと効果音）】も、**そのまま貼ってください。書き換えません。**
+音源ファイルは使いません。Web Audio で合成します。
+・BGM：8小節ループ（Am Am F G Am F G Am）／BPM128／パルス2本＋三角ベース＋ノイズドラム＋エコー＋ビブラート
+・加速：bpm をゲーム側と同じ変数から読むので、残り${plan.duration > 20 ? 12 : 8}秒・${plan.duration > 20 ? 7 : 5}秒・${plan.duration > 20 ? 3 : 2}秒で、絵と音が同じフレームで速くなる
+・効果音6種：開始・ジャンプ・着地・得点・コンボ・失敗。ゲームの関数は書き換えず、状態を見て鳴らします
+・音が鳴らないときは、その1行を足すだけで直ります：\`audioUnlock();\` を最初のクリックかキー入力で1回呼ぶ（参照コード2に入っています）
+・設計の理由（なぜ前期ではなく後期ファミコンか）は、この後ろの【BGM：ファミコン後期】に書いてあります。音を削らないこと。
+
+\`\`\`js
+${AUDIO_CODE}
 \`\`\``;
 }
 
@@ -1373,8 +1573,8 @@ const NES_BGM_CORE = `【BGM（必須・ファミコン後期の5要素で作る
 
 const NES_BGM = `【BGM：ファミコン後期（ロックマン／忍者龍剣伝／カービィ系）風。ここは必須。省略禁止】
 ・音源ファイルを使わない。Web Audio（OscillatorNode＋ノイズ）で合成する。8小節で1周し、最後は必ず頭へ戻る。
-・キーAm。BPM128・4拍子。1小節＝1.875秒。8小節＝15秒。60秒＝4周。
-・**なぜ「後期」なのか。** 前期（2音・単純）では、この企画の1分のゲームが安っぽく聞こえる。
+・キーAm。BPM128・4拍子。1小節＝1.875秒。8小節＝15秒。30秒＝2周。
+・**なぜ「後期」なのか。** 前期（2音・単純）では、この企画の30秒のゲームが安っぽく聞こえる。
   後期は「音が多くて忙しいのに、耳に残る」。この差は音数ではなく、次の5つの作り方で出る。
 
 【① パルス2本を、役割を分けて使う】
@@ -1419,7 +1619,7 @@ const NES_BGM = `【BGM：ファミコン後期（ロックマン／忍者龍剣
 ・BGMは効果音より必ず小さくする。SE（0.3前後）が埋もれると、当たった手応えが消える。
 
 【加速（ゲーム側と同じタイミングで必ず行う）】
-・残り20秒でBPM143、残り10秒で164、残り5秒で182。
+・残り12秒でBPM143、残り7秒で164、残り3秒で182（1プレイ30秒の企画）。
 ・テンポを上げたら、ハットを8分→16分に増やし、残り10秒から ch2 のアルペジオを16分→32分に上げる。
   **音符を増やすのではなく、刻みを細かくする。** 音数を増やすと耳が飽和して、速く聞こえない。
 ・ゲーム側の速度倍率と、必ず同じフレームで切り替える。片方だけ速いと、音と絵がズレて気持ち悪くなる。
@@ -1427,6 +1627,30 @@ const NES_BGM = `【BGM：ファミコン後期（ロックマン／忍者龍剣
 
 /* 旧名の互換（既存の出力・検証が PPAP_BGM を参照しているため） */
 const PPAP_BGM = NES_BGM;
+
+/* ------------------------------------------------------------------
+   WEB用の短いBGM仕様（2026-10-31）。
+   WEBプロトは音を【参照コード2：音】として**実装ごと同梱**したので、
+   文章で同じことを二重に書くと、プロンプトが44,367字まで膨れて
+   他の指示（入力・演出・重さ）を押し出してしまう（実測）。
+   だからWEBでは「なぜこの作り方か」と「変えてはいけない数値」だけを残し、
+   実装の手順はコードに任せる。Unity側は今まで通り NES_BGM を全文使う
+   （Unityはコードを渡さないので、文章が唯一の指示になる）。
+   ------------------------------------------------------------------ */
+const NES_BGM_WEB = `【BGM：ファミコン後期（ロックマン／忍者龍剣伝／カービィ系）風。ここは必須。省略禁止】
+・音源ファイルを使わない。Web Audio で合成する。**すぐ上の【参照コード2：音】に、もう鳴る形で入っています。**
+・キーAm。BPM128・4拍子。8小節＝15秒で1周し、最後は必ず頭へ戻る（30秒＝2周）。
+・**前期（2音・単純）で済ませない。** 後期は次の5つで作る。揃って初めて「後期」に聞こえる。
+　① パルス2本：旋律＝duty 25%、アルペジオ＝duty 12.5%（役割を分ける）
+　② 三角ベース：8分刻みでオクターブを跳ばす（A2→A3）。第3倍音（×3）を音量0.10で重ねる
+　　（**200Hz以下はスマホでほぼ出ない**。これが無いと phone でベースが消える）
+　③ ノイズのドラム：キック1・3拍目／スネア2・4拍目／ハット8分。**4つ打ちにしない**
+　④ エコー：1/8音符ディレイ（0.234秒）を**1本だけ**。フィードバック無し。ch1 だけに掛ける
+　　（**遅延ノード DelayNode は1つだけ作る**。鳴らすたびに作ると後半で音が割れる）
+　⑤ ビブラート：0.25秒以上伸ばす音だけ 5.5Hz・±12セント
+・コード進行（8小節・変えない）：Am → Am → F → G → Am → F → G → Am
+・加速：残り12秒でBPM143、残り7秒で164、残り3秒で182。**刻みを細かくする**（音数を増やさない）。
+・**BGMのテンポは、キャラのクネクネのωにもそのまま使う（1つの BPM 変数から両方作る）.**`;
 
 /* 全ゲームに必ず入る3つの味付け（画面には出さない） */
 function alwaysTwistBlock(plan){
@@ -1694,11 +1918,13 @@ function promptWeb(plan){
   return `HTML/CSS/JavaScriptを1ファイルにまとめて、${plan.duration}秒で遊べるWebミニゲームを作ってください。
 
 【このプロンプトの読み方（これを最初に読む）】
-このプロンプトの前半に【参照コード】という、**入力・ジャンプ・粒・拡縮・画面の揺れ・画面遷移・
-ループが全部つながった完成コード**を置いてあります（このあとすぐ）。最後に、キャラを描く
-drawPico の完成コードがあります。
-**あなたの仕事は、この2つを貼って、敵・当たり判定・得点（updateGame と drawGameObjects）だけを足すこと。**
-骨格を自分で書き起こさない。貼ってから足す。これが今回の唯一の合格条件です。
+このプロンプトは、**もう動く完成コードを最初に3つ並べてあります。文章より先に、この3つを貼ります。**
+　1. 【参照コード】（すぐ下）… 入力・ジャンプ・粒・拡縮・揺れ・止め・数字・画面遷移・ループ
+　2. 【参照コード2：音】（その直後）… ファミコン後期風のBGMと効果音6種（Web Audioで合成）
+　3. 【キャラの描画コード】（最後）… ピコ太郎の drawPico
+**あなたの仕事は、この3つを貼って、敵・当たり判定・得点（updateGame と drawGameObjects）だけを足すこと。**
+骨格も音も自分で書き起こさない。貼ってから足す。これが今回の唯一の合格条件です。
+そのあとに続く文章は、すべて**このコードを変えないための説明**です（読むだけ。コードを書き直す理由には使わない）。
 
 【最重要の拘束】
 ${LOCK}
@@ -1714,6 +1940,8 @@ ${LOCK}
 ・画面：TITLE → PLAY → RESULT（RESULTからRETRYで再開）
 
 ${coreBlock(plan)}
+
+${audioBlock(plan)}
 
 ${INPUT_SPEC}
 
@@ -1821,30 +2049,21 @@ ${picoArtBlock(plan)}
 吹き出しを1つ作り、開始・成功・失敗・コンボの4場面だけ「Pen!」「Oh!」「Yeah!」を0.9秒表示する。歌詞は使わない。
 
 【音（Web Audioで合成・音源ファイルなし）】
-BPM128・Am・8小節ループ。ドラムは4つ打ちにしない（下のBGM仕様で決める）。SEは6種（決定・取得・成功・失敗・コンボ・開始）。
-「Pen」は高い2音、「Apple」は丸い1音、「Pineapple」は少し濁った音にして、耳で区別できるようにする。
-**「耳で区別できる」を数値で担保する。次の周波数から動かさない（実測で区別を確認済み）：**
-・Pen＝square 880Hz と 1320Hz の2音を0.07秒ずらして鳴らす（上がる2音）。
-・Apple＝sine 440Hz の1音・減衰0.16秒（丸い）。
-・Pineapple＝sawtooth 330Hz に square 335Hz を重ねる・減衰0.20秒（うなりで濁る）。
-・決定＝square 660Hz 0.06秒／取得＝triangle 990Hz 0.08秒／成功＝sine 523→784→1047Hz の3音
-・失敗＝sawtooth 220→165Hz の下降 0.22秒／コンボ＝square 1047Hz を2回 0.05秒間隔／開始＝sine 392Hz 0.15秒
-・うなり（330Hz と 335Hz）は差が5Hz。濁りとして聞こえる下限付近なので、これより狭くしない。
-開始時にAudioContextをresumeする。
+**音は上の【参照コード2：音】に、もう鳴る形で入っています（書き直さない）。**
+ここには「変えてはいけない数値」だけを書く。
+・SEは6種（開始・ジャンプ・着地・得点・コンボ・失敗）。周波数は参照コード2から動かさない。
+・「Pen」は高い2音（880Hz と 1320Hz を0.07秒ずらす）、「Apple」は丸い1音（sine 440Hz・0.16秒）。
+  「Pineapple」は 330Hz に 335Hz を重ねてうならせる（差が5Hz。これより狭くしない。0.20秒）。
+・**BGMは効果音より必ず小さくする**（master 0.22 に対し SE は0.4〜0.6）。埋もれると手応えが消える。
+・うなり・2音ずらしは「耳で区別できる」ことを担保するための数値。変えない。
 
-${PPAP_BGM}
+${NES_BGM_WEB}
 ${musicWebBlock(plan)}
 
 【実装：BGMとクネクネと加速を1つの真実から作る】
-・\`var bpm = 128;\` をグローバルに1つだけ置く。BGMもクネクネのωも、この値だけを見る。
-・残り時間で bpm を切り替える（20秒→143／10秒→164／5秒→182）。同じ場所で speedMul も切り替える。
-・**音と絵を同じフレームで切り替えろ。** 片方だけ先に速くなると、リズムが気持ち悪くなる。
-・効果音（SE）の周波数は、下の表から動かさない。BGMのテンポが上がっても、SEの音程は変えない。
-
-【実装：ノイズとエコーは1回だけ作って使い回す】
-・ノイズのBufferは開始時に1回だけ作り、以後すべてのドラムで使い回す（毎回作るとプツッと切れる）。
-・DelayNode は1つだけ。エコーを鳴らすたびに作らない（ノードが増え続けて、後半で音が割れる）。
-・**OscillatorNode は鳴り終わったら必ず stop する。** 止めないと、音が重なって音量が膨らみ、最後には音が割れる。
+**これは【参照コード2：音】に、もう入っています（\`var bpm\` を1つだけ持ち、BGMとswayX()が同じ値を見る）。**
+・残り12秒→143／7秒→164／3秒→182。同じ場所で speedMul も切り替える（音と絵を同じフレームで）。
+・**ノイズのBufferは1回だけ・DelayNode は1つだけ・OscillatorNode は必ず stop**（この3つもコードに入っている）。
 
 【最後に：キャラの描画コード（これをそのまま使う・書き直さない・寸法を変えない）】
 ここまでに書いた「動き・演出・音」が本体。キャラの絵は、それを成立させるための部品でしかない。
@@ -2094,9 +2313,10 @@ Markdownの見出しだけで構成。前置き・自己紹介・謝辞の定型
 PK2.prompts = { promptPlan, promptImage, promptAssets, promptWeb, promptUnity, promptProposal,
                 juiceBlock, absurdBlock, PICO_LOOK, LOCK, JUICE_RULE, ABSURD_RULE, PERF_RULE,
                 INPUT_SPEC, JUICE_SCALE, EFFECT_CHECK, PERF_HARD, CORE_CODE, coreBlock,
+                AUDIO_CODE, audioBlock,
                 FUN_RULE, funBlock, musicBlock, musicWebBlock,
                 situBlock, alwaysTwistBlock, WIGGLE_SPEC,
-                NES_BGM, NES_BGM_CORE, PPAP_BGM,
+                NES_BGM, NES_BGM_CORE, NES_BGM_WEB, PPAP_BGM,
                 PICO_SPEC, PICO_POSES, POSE_BY_GENRE, FACE_RULE,
                 PICO_ART, picoArtBlock,
                 picoSpecBlock, picoSpecShort, pickPoses, poseBlock, poseAllBlock, heroPose,
