@@ -3,6 +3,112 @@
 大学の授業「ゲーム制作演習」で使う **ピコ太郎版 ゲーム企画具体化ツール**。
 現在は **v2（好きなゲームにピコ太郎を乗せる方式）** が本線です。
 
+## 今回（2026-10-31 / 笑いの層を同梱した版）
+
+先生から「**一発でこのクオリティを出したい**」と完成品（`gemini-code-1793417764130.html`・28,934バイト）と、
+それを出したプロンプトが渡されました。1行ずつ読んで分けた結果、**品質の正体は3層**でした。
+
+| 層 | 中身 | 前回まで | 今回 |
+|---|---|---|---|
+| ① 骨格 | 入力・ジャンプ・粒・拡縮・揺れ・画面遷移・ループ | **同梱済み**（完成品に逐語一致で入っていた） | 変更なし |
+| ② 音 | ファミコン後期風BGM＋効果音 | **同梱済み**（※完成品の音は簡易版で、こちらのほうが上） | RESULTで止まらない欠陥を修正 |
+| ③ **笑いの層** | 名札・汗・押し戻し(lerp)・観客・擬音と実況 | **無かった（＝これが原因）** | **参照コード3（9,469字）として同梱** |
+
+つまり「あのクオリティが出ない」のは才能ではなく、**③を渡していなかったこと**でした。
+笑いは分解できるので、①や②と同じく「貼るコード」として渡します。
+
+### 更新するファイルは3つ
+
+| パス | 変更 |
+|---|---|
+| `assets/v2/prompts.js` | `HUMOR_CODE`（9,469字）＋`HUMOR_SPEC`（1,375字）を追加、`promptWeb` に配線。`AUDIO_CODE` の停止欠陥を修正 |
+| `assets/v2/genres.js` | `PK2.VERSION` を「笑いの層を同梱した版」に |
+| `index.html` | `<summary id="verChip">` を同じ文字に |
+
+`assets/v2/{plan,app}.js` と `style.css` は**今回変更なし**。
+
+### 笑いの5部品（`HUMOR_CODE` の中身）
+
+| # | 部品 | 実装 |
+|---|---|---|
+| ① | **固有名詞を書く** | `humorName(x,y,'名前')` — 迫る物・足場・トロフィーに名前を付けて書く |
+| ② | **大げさな身体反応** | 汗は大粒の青（6〜13px）＋黒縁＋白ハイライト。**ジャンプでもかく**（物理ではなく感情） |
+| ③ | **なめらかな押し戻し** | 目標値だけ動かし表示は lerp（`hWallX += (hWallTX-hWallX)*min(1,dt*10)`） |
+| ④ | **見られている** | 観客シルエット24人＋サイリウム10本 |
+| ⑤ | **音と文字を同じフレームで** | 擬音「ド ド ド」＋実況「どもどもー」 |
+
+### 設計上、あえて参照元から変えた2点（理由つき）
+
+1. **`HUMOR.wallKill` の既定を `false` にした。**
+   参照元の壁は上限が無く 24px/秒で迫るため、押し戻しを1度も呼ばない企画では**開始4秒で理不尽に死にます**。
+   既定では「画面の左12%かつプレイヤーの左手前110px」で止め、**飲まれたら負けにしない**。
+   `true` にしたときだけ負けます（実測：`wallKill=false` で30秒回して `STATE=PLAY` のまま、
+   `true` で `RESULT` になることを確認）。
+2. **`drawGameObjects` を包まない。**
+   `drawGameObjects` と `updateGame` は「あなたが書く2か所」です。ここを包むと、生成AIが同名の
+   関数宣言を後ろに書いたとき**巻き上げで上書きされ、笑いの層が丸ごと消えます**。
+   包むのは `update` / `drawBackground` / `renderPlayScreen` の3つだけにしました。
+3. **文字は canvas に1回だけ焼いて `drawImage`。** 毎フレーム `fillText` は自前の重さ規則③違反。
+
+### 直した音の欠陥（実測で見つけた）
+
+`AUDIO_CODE` は `state` が `RESULT` になっても小節を予約し続け、しかも**効果音も BGM のバス経由**でした。
+そのため「RESULT で音を確実に止める」という要件を満たしていませんでした。
+
+- `audioPlay(on)` を追加（`ABus.gain` を 0.05秒でランプ、`ANextBar` を捨てる）
+- `audioUpdate()` に `if(state !== 'PLAY'){ return; }`
+- 効果音は `ASe`（`AB.destination` 直結）へ移した → BGMを止めても失敗音は鳴る
+
+### 実測（実ブラウザで実行して数えた）
+
+**新規 `tools/v2_humor_check.html`（CORE→AUDIO→HUMOR→PICO を貼る順に流し込んで実行）**
+
+```
+HUMOR_CHARS=9469  HUMOR_SPEC_CHARS=1375  WEB_TOTAL_CHARS=54792
+WEB_CONTAINS_CORE=true AUDIO=true HUMOR=true PICO=true  WEB_HAS_HUMOR_SPEC=true
+HUMOR_BACKTICKS=0  HUMOR_DOLLAR_BRACE=0   ← テンプレートの罠なし
+HUMOR_WRAPS_drawGameObjects=false  HUMOR_WRAPS_updateGame=false   ← 2か所を奪わない
+HUMOR_5PARTS_ALL=true  HUMOR_Math_random=0
+SWEAT_AFTER_JUMP=2  SWEAT_AFTER_40CALLS=24（上限）  SWEAT_AFTER_0.66s=0
+TARGET_AFTER_PUSH=80  DISPLAY_BEFORE_STEP=200.00  DISPLAY_AFTER_1FRAME=180.86
+FRAMES_TO_CONVERGE=22  ← 1フレームで飛ばない＝lerpが効いている
+STATE_AFTER_30s=PLAY  WALL_AFTER_30s=115.0px  NO_INSTANT_DEATH=true
+WALLKILL_ON_STATE=RESULT（trueのときだけ負ける）
+LABEL_AFTER_1.12s=0  TELOP_AFTER_1.12s=0.00
+RENDER_TITLE=OK RENDER_PLAY=OK RENDER_RESULT=OK
+RETRY_STATE=PLAY RETRY_TIMELEFT=30 RETRY_SCORE=0 RETRY_PLAYER_X=180
+PASS=63 FAIL=0 JS_ERRORS=0 ALL_OK=true
+```
+
+**目視（`tools/humor_visual.html` を実際に描画して確認）**
+黒い canvas の左端に赤い帯（幅の約13%）、キャラの頭の上に**青い汗10個**（黒縁＋白ハイライト）、
+黄色い名札3枚（`★人気` / `「生放送だよ！全員集合」` / `大人気トロフィー`）、
+上部中央に黄帯で `どもどもー`、床ぎわに観客のシルエットとサイリウム、左上に `SCORE 300 TIME 19`。
+**コードが文章として画面に漏れている箇所はなし。**
+
+**回帰（既存の検証も維持）**
+`tools/v2_core_check.html` → `PASS=71 FAIL=0 JS_ERRORS=0 ALL_OK=true`
+`tools/v2_audio_code_check.html` → `PASS=64 FAIL=0 JS_ERRORS=0 ALL_OK=true`
+`tools/v2_duration_bgm_check.html` → `NO_STALE_60=true` / `PLAN_DURATION_VALUES={"30":22}` / `BGM_CODE_ALL=true`
+
+**測り方の注意（今回も同じ罠を踏んだ）**：最初の実行は `FAIL=6` でしたが、**6件とも私の検証ツールの誤り**でした
+（`update()` を1回も呼ばずに汗を数えた／30pxから押し戻して下限clampに当たった／名札の寿命1.0秒を0.66秒で判定／
+押しっぱなしの札を離さずにリトライを試した／`player.x=180` なのに上限115pxを期待した）。
+製品を直す前にツールを直し、再実行して `FAIL=0` を確認しています。
+
+### この方式の限界（正直に書く）
+
+確かめられるのは「同梱したコードが正しく動くこと」までです。
+**生成AIが実際に貼ったかどうかは、私からは見えません。** 学生側・生成側の最終確認は先生の目視が必要です。
+
+### 未push（先生のpushが必要）
+
+`assets/v2/prompts.js` / `assets/v2/genres.js` / `index.html` / `README.md` の今回ぶんは**未push**です
+（エージェントに `.git/config` が無いため push できません）。
+push 後、チップが **「笑いの層を同梱した版」** になっていれば反映済みです。
+
+---
+
 | 版 | リポジトリ | 公開URL | 状態 |
 |---|---|---|---|
 | **v2（本線）** | `odatid/PikoTGame` | https://odatid.github.io/PikoTGame/ | 学生に配るURL |
