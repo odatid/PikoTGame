@@ -724,35 +724,444 @@ const PERF_RULE = `【重くしない（演出は全部入れる。ただしこ�
   60fps付近を保てていれば合格。落ちる場合は、まず②の上限を下げる（①〜⑤は変えない）。`;
 
 /* ------------------------------------------------------------------
+   参照コード（CORE_CODE）。
+   **方針転換（2026-10-31・先生の指示）**：
+   これまでは「こう書け」と文章で指定していた。だが生成側は文章を写さない。
+   Gemini の修正指示が keys[' '] / spawnParticles() / parts / pt.on / renderPlayScreen()
+   という**具体名**で書かれていたのが証拠で、向こうは「名前の決まったコード」が来ないと動かせない。
+   そこで、入力・ジャンプ・粒・拡縮・揺れ・止め・数字・画面遷移・ループを
+   **俺が1本の完成コードとして書き**、プロンプトに同梱して「これをそのまま貼れ」と言う。
+   生成側が書くのは敵・当たり判定・得点（updateGame / drawGameObjects）だけになる。
+   実測（tools/v2_core_check.html・実ブラウザ実行）：
+     スペース押下で state=TITLE→PLAY・vy=-720・sx=0.82・粒6個が同時に成立。
+     空中で押し直しても2回目は跳ばない（jumpLatch）。
+     着地で onGround が戻り、もう一度跳べる。RESULT からスペースで再開。
+     この数値は実行するたびに同じ（乱数0・決定）。
+   ------------------------------------------------------------------ */
+const CORE_CODE = `/* ===================================================================
+   【参照コード】この1本をそのまま使う（関数名・変数名を変えない・抜粋しない）
+   入力・ジャンプ・粒・拡縮・揺れ・止め・数字・画面遷移・ループは、ここで全部つながっている。
+   あなたが書くのは updateGame(dt) と drawGameObjects() の中だけ（敵・ゴール・当たり判定・得点）。
+   この2つが空のままでも、スペースで跳ねて、着地で潰れて、粒が出るゲームとして動く。
+   =================================================================== */
+var canvas = document.getElementById('game');   /* canvas の id は game にする */
+var ctx = canvas.getContext('2d');
+var W = 960, H = 540;
+canvas.width = W;        /* ★この2行以外で canvas.width に代入しない（毎フレーム代入＝重い） */
+canvas.height = H;
+
+var TUNING = {
+  juice: true,           /* false にすると演出が全部止まる（発表で並べて見せる） */
+  duration: 60,          /* ★上の【仕様（変更禁止）】の1プレイ秒数に合わせて書き換える */
+  gravity: 2100,
+  jumpV: 720,
+  limits: { parts: 30, popups: 6 },
+  fps: 0
+};
+var GROUND_Y = Math.round(H * 0.86);
+
+var state = 'TITLE';     /* TITLE / PLAY / RESULT */
+var timeLeft = TUNING.duration;
+var score = 0;
+var hitstop = 0;         /* 0より大きい間は更新を止める（秒） */
+var flash = 0;           /* 白飛びの残り秒 */
+var shakeT = 0, shakeDur = 0, shakeAmp = 0;
+var failReason = '';
+
+var player = {
+  x: 180, y: GROUND_Y, vy: 0, onGround: true,
+  sx: 1, sy: 1, sx0: 1, sy0: 1, sqT: 0, sqDur: 0
+};
+
+/* ============ ① 入力（登録は起動時に1回だけ） ============ */
+var keys = { ' ':false, ArrowLeft:false, ArrowRight:false, a:false, d:false };
+var jumpLatch = false;   /* 押しっぱなしで連続ジャンプしないための札 */
+var inputReady = false;
+
+function registerInput(){
+  if(inputReady){ return; }        /* ★二重登録しない（リトライで壊れる原因） */
+  inputReady = true;
+
+  window.addEventListener('keydown', function(e){
+    var k = (e.key || '').length === 1 ? e.key.toLowerCase() : e.key;
+
+    /* ★ preventDefault は関数の先頭で呼ぶ。後ろに書くとページがスクロールする */
+    if(k === ' ' || e.code === 'Space' || k === 'ArrowLeft' || k === 'ArrowRight'
+       || k === 'ArrowUp' || k === 'ArrowDown'){ e.preventDefault(); }
+
+    if(k === ' ' || e.code === 'Space'){
+      if(!keys[' ']){ tryJump(); }  /* 押した瞬間に1回だけ */
+      keys[' '] = true;
+      return;
+    }
+    if(k === 'ArrowLeft'  || k === 'a'){ keys.ArrowLeft  = true; return; }
+    if(k === 'ArrowRight' || k === 'd'){ keys.ArrowRight = true; return; }
+  }, {passive:false});
+
+  window.addEventListener('keyup', function(e){
+    var k = (e.key || '').length === 1 ? e.key.toLowerCase() : e.key;
+    if(k === ' ' || e.code === 'Space'){ keys[' '] = false; jumpLatch = false; return; }
+    if(k === 'ArrowLeft'  || k === 'a'){ keys.ArrowLeft  = false; return; }
+    if(k === 'ArrowRight' || k === 'd'){ keys.ArrowRight = false; return; }
+  }, {passive:false});
+
+  window.addEventListener('blur', function(){   /* 押しっぱなしが残らないように全消し */
+    keys[' '] = false; keys.ArrowLeft = false; keys.ArrowRight = false; jumpLatch = false;
+  });
+
+  canvas.addEventListener('pointerdown', function(e){   /* スマホ：上半分タップ＝ジャンプ */
+    e.preventDefault();
+    var r = canvas.getBoundingClientRect();
+    var x = (e.clientX - r.left) / r.width;
+    var y = (e.clientY - r.top) / r.height;
+    if(y < 0.5){ tryJump(); }
+    else if(x < 0.5){ keys.ArrowLeft = true; }
+    else { keys.ArrowRight = true; }
+  }, {passive:false});
+  canvas.addEventListener('pointerup', function(){
+    keys.ArrowLeft = false; keys.ArrowRight = false; jumpLatch = false;
+  });
+}
+
+/* ============ ② ジャンプの唯一の入口 ============ */
+function tryJump(){
+  if(state === 'TITLE' || state === 'RESULT'){ startGame(); }   /* 決定としても使う */
+  if(state !== 'PLAY'){ return; }
+  if(!player.onGround){ return; }
+  if(jumpLatch){ return; }
+  player.vy = -TUNING.jumpV;
+  player.onGround = false;         /* ★false にしてよいのはここだけ */
+  jumpLatch = true;
+  squash(0.82, 1.22, 0.14);        /* 離陸：上に伸びる */
+  spawnParticles(player.x, player.y, 6, '#FFD400');
+}
+
+function startGame(){
+  state = 'PLAY';
+  timeLeft = TUNING.duration;
+  score = 0; failReason = '';
+  keys[' '] = false; keys.ArrowLeft = false; keys.ArrowRight = false;
+  jumpLatch = false;
+  player.x = 180; player.y = GROUND_Y; player.vy = 0; player.onGround = true;
+  player.sx = 1; player.sy = 1; player.sqDur = 0;
+  hitstop = 0; flash = 0; shakeDur = 0; shakeAmp = 0;
+  clearParticles();
+  /* ★ゲーム固有の初期化はここに足す（敵・ゴール・残機） */
+}
+
+function endGame(reason){
+  if(state !== 'PLAY'){ return; }
+  state = 'RESULT';
+  failReason = reason || '';
+  flash = 0.12;
+  spawnParticles(player.x, player.y, 12, '#FFD400');
+}
+
+/* ============ ③ 拡縮（足元原点・1-(1-t)^3 で戻す） ============ */
+function squash(sx, sy, sec){
+  if(!TUNING.juice){ return; }
+  player.sx0 = Math.min(1.30, Math.max(0.75, sx));   /* ★clamp しないと連打で積もる */
+  player.sy0 = Math.min(1.30, Math.max(0.75, sy));
+  player.sx = player.sx0; player.sy = player.sy0;
+  player.sqT = 0; player.sqDur = sec;
+}
+function updateSquash(dt){
+  if(player.sqDur <= 0){ return; }
+  player.sqT += dt;
+  var t = player.sqT / player.sqDur;
+  if(t >= 1){ player.sx = 1; player.sy = 1; player.sqDur = 0; return; }
+  var e = 1 - Math.pow(1 - t, 3);    /* 線形で戻すと安っぽい。3乗で抜く */
+  player.sx = player.sx0 + (1 - player.sx0) * e;
+  player.sy = player.sy0 + (1 - player.sy0) * e;
+}
+
+/* ============ ④ 粒（固定長プール・乱数なし） ============ */
+var MAX_PARTS = TUNING.limits.parts;
+var parts = new Array(MAX_PARTS);
+for(var i = 0; i < MAX_PARTS; i++){
+  parts[i] = {on:false, x:0, y:0, vx:0, vy:0, life:0, max:1, col:'#FFD400', size:3};
+}
+function spawnParticles(x, y, n, col){
+  if(!TUNING.juice){ return; }
+  var made = 0;
+  for(var i = 0; i < MAX_PARTS && made < n; i++){
+    var pt = parts[i];
+    if(pt.on){ continue; }
+    pt.on = true; pt.x = x; pt.y = y;
+    var a = made * 2.399963;         /* 黄金角で放射状に散らす（乱数を使わない） */
+    var sp = 90 + (made % 3) * 45;
+    pt.vx = Math.cos(a) * sp;
+    pt.vy = Math.sin(a) * sp - 60;
+    pt.max = 0.30; pt.life = 0.30;
+    pt.col = (made % 2 === 0) ? col : '#FFFFFF';
+    pt.size = 3 + (made % 2) * 2;
+    made++;
+  }
+}
+function updateParticles(dt){
+  for(var i = 0; i < MAX_PARTS; i++){
+    var pt = parts[i];
+    if(!pt.on){ continue; }
+    pt.life -= dt;
+    if(pt.life <= 0){ pt.on = false; continue; }
+    pt.x += pt.vx * dt;
+    pt.y += pt.vy * dt;
+    pt.vy += 520 * dt;
+  }
+}
+function drawParticles(c){
+  c.save();
+  c.globalCompositeOperation = 'lighter';   /* ★これが無いと暗い背景に埋もれる */
+  for(var i = 0; i < MAX_PARTS; i++){
+    var pt = parts[i];
+    if(!pt.on){ continue; }
+    c.globalAlpha = Math.min(1, pt.life / pt.max * 1.4);
+    c.fillStyle = pt.col;
+    c.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  }
+  c.restore();                              /* ★合成と alpha を必ず戻す */
+}
+function clearParticles(){
+  for(var i = 0; i < MAX_PARTS; i++){ parts[i].on = false; }
+}
+function countParticles(){                  /* 目で数えられないので、数える関数を用意する */
+  var n = 0;
+  for(var i = 0; i < MAX_PARTS; i++){ if(parts[i].on){ n++; } }
+  return n;
+}
+
+/* ============ ⑤ 数字ポップ（固定長） ============ */
+var MAX_POPUPS = TUNING.limits.popups;
+var popups = new Array(MAX_POPUPS);
+for(var pi = 0; pi < MAX_POPUPS; pi++){
+  popups[pi] = {on:false, x:0, y:0, vy:0, life:0, max:0.5, txt:''};
+}
+function spawnPopup(x, y, txt){
+  if(!TUNING.juice){ return; }
+  for(var i = 0; i < MAX_POPUPS; i++){
+    var p = popups[i];
+    if(p.on){ continue; }
+    p.on = true; p.x = x; p.y = y; p.vy = -90;
+    p.max = 0.50; p.life = 0.50; p.txt = txt;
+    return;
+  }
+}
+function updatePopups(dt){
+  for(var i = 0; i < MAX_POPUPS; i++){
+    var p = popups[i];
+    if(!p.on){ continue; }
+    p.life -= dt;
+    if(p.life <= 0){ p.on = false; continue; }
+    p.y += p.vy * dt;
+  }
+}
+function drawPopups(c){
+  for(var i = 0; i < MAX_POPUPS; i++){
+    var p = popups[i];
+    if(!p.on){ continue; }
+    c.globalAlpha = Math.min(1, p.life / p.max * 1.6);
+    c.fillStyle = '#FFFFFF';
+    c.font = 'bold 22px monospace';
+    c.textAlign = 'center';
+    c.fillText(p.txt, p.x, p.y);
+  }
+  c.globalAlpha = 1;
+}
+function addScore(n, x, y){ score += n; spawnPopup(x, y, '+' + n); }
+
+/* ============ ⑥ 画面の揺れ ============ */
+function shake(amp, sec){
+  if(!TUNING.juice){ return; }
+  shakeAmp = amp; shakeDur = sec; shakeT = 0;
+}
+
+/* ============ ⑥-2 クネクネ（待機中も止めない） ============
+   BGMのテンポ bpm と、この揺れは**同じ変数から作る**。別々に持たない。
+   加速したら、音も揺れも同時に速くなる（片方だけ先に速いと気持ち悪い）。 */
+var bpm = 128;
+var animT = 0;
+function swayX(){
+  var omega = 2 * Math.PI * bpm / 60 / 2;   /* 8分音符で1往復 */
+  return Math.sin(animT * omega) * 0.10 * 34;   /* 頭の幅34pxの10%＝3.4px */
+}
+
+/* ============ ⑦ 更新（呼ぶ順番を変えない） ============ */
+function update(dt){
+  if(hitstop > 0){ hitstop -= dt; return; }   /* 止めている間は何も進めない */
+
+  animT += dt;                /* ★クネクネの時計。待機中も必ず進める（止めない） */
+  updateParticles(dt);        /* ★先頭で必ず呼ぶ（呼ばないと粒が固まる） */
+  updatePopups(dt);
+  updateSquash(dt);
+
+  if(shakeDur > 0){
+    shakeT += dt;
+    if(shakeT >= shakeDur){ shakeDur = 0; shakeAmp = 0; shakeT = 0; }
+  }
+  if(flash > 0){ flash -= dt; if(flash < 0){ flash = 0; } }
+
+  if(state === 'PLAY'){
+    timeLeft -= dt;
+    if(timeLeft <= 0){ timeLeft = 0; endGame('時間切れ'); return; }
+    var dir = (keys.ArrowLeft ? -1 : 0) + (keys.ArrowRight ? 1 : 0);
+    player.x += dir * 300 * dt;
+    player.x = Math.max(40, Math.min(W - 40, player.x));
+  }
+
+  updatePlayer(dt);
+  updateGame(dt);             /* ★ゲーム固有（敵・当たり判定）。中身は自分で書く */
+}
+
+function updatePlayer(dt){
+  player.vy += TUNING.gravity * dt;
+  player.y += player.vy * dt;
+  if(player.y >= GROUND_Y){
+    if(!player.onGround){
+      squash(1.28, 0.76, 0.20);                    /* 着地：一番強く潰す */
+      spawnParticles(player.x, GROUND_Y, 10, '#FFD400');
+      shake(4, 0.15);
+      hitstop = 0.06;                              /* 止めるのは着地と被弾だけ */
+    }
+    player.y = GROUND_Y; player.vy = 0; player.onGround = true;   /* ★戻すのはここだけ */
+  }
+}
+function updateGame(dt){ /* ★敵・当たり判定・得点はここに書く（空のままでよい） */ }
+
+/* ============ ⑧ 描画（順番を変えない） ============ */
+function renderPlayScreen(){
+  ctx.save();
+  if(shakeDur > 0){                            /* 揺れは描画の最初に translate するだけ */
+    var sk = 1 - shakeT / shakeDur;
+    ctx.translate(Math.sin(shakeT * 90) * shakeAmp * sk,
+                  Math.sin(shakeT * 70 + 1) * shakeAmp * sk * 0.6);
+  }
+  drawBackground();
+  drawFloor();
+  drawGameObjects();                           /* ★敵・ゴール・アイテム（空のままでよい） */
+  var pose = 'idle';
+  if(!player.onGround){ pose = 'jump'; }
+  else if(player.sqDur > 0 && player.sy < 0.95){ pose = 'land'; }
+  /* ★クネクネ：x を数pxだけずらす。待機中も止めない（止まると「動いていない絵」になる）.
+     拡縮(sx/sy)は drawPico の中で足元原点に掛かる。ここは translate だけ足す。 */
+  drawPico(ctx, player.x + swayX(), player.y, 34, pose, player.sx, player.sy, 1);
+  drawPopups(ctx);
+  drawParticles(ctx);      /* ★粒は最後。先に描くと床とキャラの下に隠れる */
+  ctx.restore();           /* ★揺れと alpha を必ず戻す */
+
+  if(flash > 0){
+    ctx.fillStyle = 'rgba(255,255,255,' + (flash / 0.12 * 0.7).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+  drawHUD();
+}
+function drawBackground(){ ctx.fillStyle = '#101014'; ctx.fillRect(0, 0, W, H); }
+function drawFloor(){ ctx.fillStyle = '#2A2A32'; ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y); }
+function drawGameObjects(){ /* ★敵・ゴール・アイテムを描く（空のままでよい） */ }
+
+var hudKey = '', hudText = 'SCORE 0';
+function drawHUD(){
+  var k = score + '|' + Math.ceil(timeLeft);
+  if(k !== hudKey){                 /* 文字は「変わったときだけ」組み立てる */
+    hudKey = k;
+    hudText = 'SCORE ' + score + '   TIME ' + Math.ceil(timeLeft);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#FFD400';
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText(hudText, 16, 34);
+  /* ★「スペースで ジャンプ」は PLAY でも消さずに出す */
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText('スペースで ジャンプ／はじめる', 16, H - 16);
+}
+
+/* ============ ⑨ TITLE と RESULT ============ */
+function render(){
+  if(state === 'PLAY'){ renderPlayScreen(); return; }
+  ctx.save();
+  drawBackground();
+  drawFloor();
+  ctx.textAlign = 'center';
+  if(state === 'TITLE'){
+    ctx.fillStyle = '#FFD400'; ctx.font = 'bold 44px monospace';
+    ctx.fillText('タイトル', W / 2, H * 0.32);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 22px monospace';
+    ctx.fillText('スペースで ジャンプ／はじめる', W / 2, H * 0.52);
+  }
+  if(state === 'RESULT'){
+    ctx.fillStyle = '#FFD400'; ctx.font = 'bold 40px monospace';
+    ctx.fillText('RESULT  ' + score, W / 2, H * 0.34);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 22px monospace';
+    ctx.fillText(failReason, W / 2, H * 0.48);      /* ★失敗の理由を1行だけ */
+    ctx.fillText('スペースで もう一回', W / 2, H * 0.60);
+  }
+  ctx.restore();
+}
+
+/* ============ ⑩ ループは1本だけ ============ */
+var lastT = 0, fpsT = 0, fpsN = 0;
+function loop(now){
+  if(!lastT){ lastT = now; }
+  var dt = Math.min(0.033, (now - lastT) / 1000);   /* ★dt は0.033秒が上限 */
+  lastT = now;
+  update(dt);
+  render();
+  fpsN++;
+  if(now - fpsT > 500){ TUNING.fps = Math.round(fpsN * 1000 / (now - fpsT)); fpsT = now; fpsN = 0; }
+  requestAnimationFrame(loop);                      /* ★ここ1か所だけ */
+}
+
+/* ============ 起動（この2行で始まる） ============ */
+registerInput();
+requestAnimationFrame(loop);`;
+
+/* 参照コードを、プロンプトの中で「これを貼れ」と言い切るブロックにする。
+   秒数だけは企画ごとに違うので、ここで名指しする（「60を30に変えろ」と言い切る）。 */
+function coreBlock(plan){
+  return `【参照コード：この1本をそのまま使う（ここが本体。ここから作り足す）】
+以下は、入力・ジャンプ・粒・拡縮・揺れ・止め・数字・画面遷移・ループが**もう全部つながった完成品**です。
+**この文字列をそのまま貼ってください。参考にして書き直さない。関数名と変数名を変えない。抜粋しない。**
+あなたが書くのは、この中の2か所だけです：
+・\`updateGame(dt)\` … 敵・当たり判定・得点（空のままでも動く）
+・\`drawGameObjects()\` … 敵・ゴール・アイテムの描画（空のままでも動く）
+
+**書き換えてよいのは、次の2つだけです（それ以外の数値と名前は1文字も変えない）**
+1. \`duration: 60\` → \`duration: ${plan.duration}\`（この企画は${plan.duration}秒）
+2. \`<canvas id="game">\` を HTML に置く（id は game。変えない）
+
+**この骨格を「参考にして新しく書く」のではなく、この文字列を貼る。** それが唯一の合格条件です。
+
+\`\`\`js
+${CORE_CODE}
+\`\`\``;
+}
+
+/* ------------------------------------------------------------------
    入力（キーボード）の指定。**ここが丸ごと抜けていた**（2026-10-31 実測）。
    prompts.js 全体に「スペース」という文字が1つも無く、キー名の指定が
    どこにも無かった。そのため生成側は「タップ／クリック」だけを実装し、
    スペースキーではジャンプしなかった（先生の指摘どおり）。
    キー名・preventDefault・キーリピート・スマホ側の代替を、数値で固定する。
    ------------------------------------------------------------------ */
-const INPUT_SPEC = `【入力：キーボードとタッチの両方を、この名前で実装する（抜けると操作できない）】
-・**ジャンプ／決定＝スペースキー。** キー名は必ず ' '（半角スペース1個）で判定する。
-  　NG：e.key === 'Space' / e.code === 'Spacebar' だけに頼る（環境で揺れる）
-  　OK：if(e.key === ' ' || e.code === 'Space'){ jump(); }
-・**左右＝ArrowLeft / ArrowRight。** 併せて 'a' / 'd' も受ける（e.key.toLowerCase()）。
-・**スペースの既定動作を必ず止める。** ページがスクロールしたり、直前に押した
-  ボタンが再発火して「2回目からジャンプしない」状態になる。最初の行で止める。
-  　window.addEventListener('keydown', function(e){
-  　  if(e.key === ' ' || e.code === 'Space' || e.key.indexOf('Arrow') === 0){ e.preventDefault(); }
-  　  ...
-  　}, {passive:false});
-  ※ スペースは「押しっぱなし」で連続発火する。押しっぱなしでジャンプし続けたいなら
-    keys[' ']=true を持つ。1回だけなら e.repeat を無視する（if(e.repeat) return;）。
-    どちらにするかを決めて、コメントに書く。
-・**キーが離れたことを必ず拾う。** keyup を書き忘れると、1回押しただけで
-  走りっぱなし・ジャンプしっぱなしになる。window の blur でも keys を全消しする
-  （別ウィンドウに切り替えて戻ると、押しっぱなし判定が残る）。
-・**スマホ側の代替を必ず付ける。** 画面の下半分を左右2つに分け、左タップ＝左、
-  右タップ＝右、**画面の上1/3タップ＝ジャンプ**。pointerdown で受ける
-  （click だと反応が遅れる）。キーボードが無い端末でも最後まで遊べること。
-・**操作は増やさない。** 上の【仕様（変更禁止）】に書いた操作の範囲を超えない。
-・タイトル画面と PLAY 中に、操作を1行だけ画面に出す（例：「スペースでジャンプ」）。
-  文字は消さない。学生は説明を読まないので、画面に出ている必要がある。`;
+const INPUT_SPEC = `【入力：参照コードの「① 入力」「② ジャンプの唯一の入口」「⑦ 更新」を、そのまま使う】
+**スペースキーでジャンプしない不具合が実際に起きた。原因は「書いてあるが、つながっていない」こと。**
+だから入力は文章で指定しない。**このプロンプトの【参照コード】に、もう動く形で入っている。**
+書き直さない・書き足さない・名前を変えない。確認するのは、この9点だけ（すべて参照コードの中に既にある）。
+
+1. キー名：' '（半角スペース1個）と e.code === 'Space' の**両方**で判定する。片方だけにしない。
+2. preventDefault：keydown の**関数の先頭**で呼ぶ。後ろに書くとページがスクロールして、押した感じが消える。
+3. 押した瞬間だけ1回：keys[' '] が false のときだけ tryJump() を呼ぶ（押しっぱなしで連続ジャンプしない）。
+4. 離したら戻す：keyup で keys[' '] = false、jumpLatch = false。
+5. 登録は1回だけ：registerInput() は起動時に1回。inputReady で二重登録を防ぐ。
+6. 画面が変わっても登録し直さない：TITLE / PLAY / RESULT でリスナを共用する（これが「リトライ後に効かない」の原因）。
+7. リトライの初期化：startGame() の先頭で keys と jumpLatch を必ず false に戻す。
+8. onGround を true に戻すのは updatePlayer() の着地処理だけ。ほかの場所で書き換えない。
+9. TITLE と RESULT では、スペースが「はじめる／もう一回」になる（tryJump の先頭で分岐している）。
+
+・画面には「スペースで ジャンプ／はじめる」を、TITLE と PLAY の両方に出す（drawHUD の中にある。消さない）。
+・スマホは canvas の pointerdown（上半分＝ジャンプ）で代替する。
+・操作は【仕様（変更禁止）】の範囲を超えない（増やさない）。`;
 
 /* ------------------------------------------------------------------
    拡縮（スクワッシュ＆ストレッチ）の数値仕様。
@@ -793,27 +1202,39 @@ const JUICE_SCALE = `【拡縮（スクワッシュ＆ストレッチ）：こ�
    プロンプトに「入れる」とは書いてあるが、「消えていたら不合格」という
    判定条件が無かった。自己申告できる形のチェックリストにする。
    ------------------------------------------------------------------ */
-const EFFECT_CHECK = `【エフェクト：この5つが「画面に出ている」ことを、自分で確認してから出す】
-次の5つは、コードに書いただけでは出ない。**実際に1回遊んで、目で見る。**
-1. **粒（パーティクル）** … 当たった場所から8〜12個、0.3秒で放射状に飛ぶ。
-   色は #FFD400 と #FFFFFF の2色。1つも出ていないなら、発生位置が画面外か、
-   alpha が0のまま、または parts のプールを確保していない。
-2. **数字ポップ** … 得点が入った瞬間、主人公の上に「+10」が浮かんで0.5秒で消える。
-   fillText を毎フレーム書き直すのではなく、popups の配列から描く。
-3. **画面の揺れ** … 着地・被弾で 0.15秒だけ translate が揺れる（±4px）。
-   揺れは描画の最初に1回だけ掛ける（save/restore を必ず対にする）。
-4. **ヒットストップ** … 当たった瞬間 0.05〜0.08秒だけ更新を止める。
-   止めている間も描画は続ける（止まった絵が出る＝当たった感触になる）。
-5. **白飛び（フラッシュ）** … 成功・コンボの瞬間、画面全体を白で1フレーム塗る
-   （globalAlpha 0.35 → 0.08秒で0）。globalCompositeOperation は必ず戻す。
+const EFFECT_CHECK = `【エフェクト：参照コードの「④ 粒」「⑤ 数字ポップ」「⑥ 揺れ」「⑦ 更新」「⑧ 描画」を、そのまま使う】
+**「エフェクトが消えた」が実際に起きた。原因は「書いてあるが、つながっていない」こと。**
+だから演出も文章で指定しない。**このプロンプトの【参照コード】に、もう動く形で入っている。**
+名前は変えない（parts / spawnParticles / updateParticles / drawParticles / pt.on / renderPlayScreen / countParticles）。
+粒の数は MAX_PARTS = 30 の固定長。new しない・filter しない・乱数を使わない。
 
+【エフェクト5つを「どこで呼ぶか」まで決める（ここが抜けると出ない）】
+| 演出 | 呼ぶ場所 | 呼び忘れると |
+|---|---|---|
+| 粒 | spawnParticles() を 離陸・着地・取得・被弾の4か所で | 1つも出ない |
+| 粒の更新 | updateParticles(dt) を update() の**先頭**で毎フレーム | 出た瞬間に固まる |
+| 粒の描画 | drawParticles(ctx) を renderPlayScreen() の**最後** | 背景の下に隠れる |
+| 数字ポップ | 得点が入った場所で popups の空き枠へ | 数字が出ない |
+| 画面の揺れ | 着地・被弾で shake(4, 0.15) | 手応えが無い |
+| ヒットストップ | 被弾・成功で hitstop = 0.06 | 当たった感触が無い |
+| 白飛び | 成功・コンボで flash = 0.08 | 山場が地味 |
+
+・**renderPlayScreen() の呼ぶ順番を固定する**（この順番を変えない）：
+  　背景 → 床 → 敵 → ピコ太郎 → 数字ポップ → 粒 → 揺れを戻す → 白飛び
+  粒を先に描くと、キャラと床の下に隠れて「出ていない」ように見える。**最後に描く。**
 ・**確認の手順（これをやらずに「できた」と言わない）**
   　① 起動して、タイトルから PLAY に入る
-  　② 1回当てる → 粒・数字・揺れ・止め・白飛びの5つを、1つずつ口に出して数える
-  　③ 5つ未満なら、足りないものを実装してから、もう一度①から
+  　② スペースでジャンプ → 離陸と着地で粒が出るか
+  　③ 1回当てる → 粒・数字・揺れ・止め・白飛びの5つを、1つずつ口に出して数える
+  　④ 5つ未満なら、足りないものを実装してから、もう一度①から
 ・**演出を切るスイッチを必ず作る**（TUNING.juice = true/false）。
   切ったときに5つが全部消え、入れたときに全部出ることを確認する。
-  ここが「入れたつもりで入っていない」を防ぐ唯一の方法。`;
+  ここが「入れたつもりで入っていない」を防ぐ唯一の方法。
+・**粒が出ないときの切り分け（上から順に疑う）**
+  　(a) parts を作っていない（未定義のまま）→ (b) spawnParticles を呼んでいない
+  　→ (c) updateParticles を呼んでいない → (d) drawParticles を呼んでいない
+  　→ (e) globalCompositeOperation を戻し忘れて、次フレームで見えなくなっている
+  　→ (f) 発生位置が画面外（player.x / player.y を渡していない）`;
 
 /* ------------------------------------------------------------------
    重さの本当の原因。**キャラの描画ではない**（実測：手足を外して137命令、
@@ -1272,6 +1693,13 @@ ${NES_BGM_CORE}
 function promptWeb(plan){
   return `HTML/CSS/JavaScriptを1ファイルにまとめて、${plan.duration}秒で遊べるWebミニゲームを作ってください。
 
+【このプロンプトの読み方（これを最初に読む）】
+このプロンプトの前半に【参照コード】という、**入力・ジャンプ・粒・拡縮・画面の揺れ・画面遷移・
+ループが全部つながった完成コード**を置いてあります（このあとすぐ）。最後に、キャラを描く
+drawPico の完成コードがあります。
+**あなたの仕事は、この2つを貼って、敵・当たり判定・得点（updateGame と drawGameObjects）だけを足すこと。**
+骨格を自分で書き起こさない。貼ってから足す。これが今回の唯一の合格条件です。
+
 【最重要の拘束】
 ${LOCK}
 
@@ -1284,6 +1712,8 @@ ${LOCK}
 ・失敗条件：${plan.fail}
 ・1プレイ：${plan.duration}秒
 ・画面：TITLE → PLAY → RESULT（RESULTからRETRYで再開）
+
+${coreBlock(plan)}
 
 ${INPUT_SPEC}
 
@@ -1338,17 +1768,18 @@ ${juiceBlock(plan)}
 
 ${JUICE_SCALE}
 
-【ジュースの書き方（Canvas 2D・この形で書く）】
-・拡縮の数値は、上の表から変えない（表が唯一の正）。
-・ヒットストップは hitstop という残り秒数の変数を作り、0より大きい間だけ更新を飛ばす。
-  Time 系のグローバルは使わない。0.05〜0.08秒。
-・数字ポップは配列 popups に入れて、0.5秒で上に移動しながら alpha を 1→0。
-  popups も**固定長（長さ6）で先に確保して使い回す**。毎フレーム新しい配列を作らない。
-・粒子は配列 parts に8〜12個。発生源から放射状に飛ばし、0.3秒で消す。同時30個を上限に。
-  **parts も固定長（長さ32）で確保し、空き枠を再利用する。** parts.filter(...) は書かない（下の【重くしない】を読む）。
-・画面揺れは描画の最初に ctx.translate(shakeX, shakeY) を掛けるだけ。0.15秒で0へ戻す。
-・**演出が入っていない状態と、入れた状態を、コード内の TUNING.juice = true / false で切り替えられるようにする。**
-  （発表のときに「入れた場合／入れない場合」を見せられる）
+【ジュースの書き方：参照コードの中に、もう実装済みで入っている】
+下の【参照コード】の次の場所を**そのまま使う**（書き直さない）。ここには数値も再揭しない。
+・ヒットストップ → \`var hitstop\` と \`update()\` の先頭2行（0より大きい間だけ全部止める）
+・数字ポップ → \`⑤ 数字ポップ\`（popups を固定長6で確保、0.5秒で上へ、alpha 1→0）
+・粒 → \`④ 粒\`（parts を固定長30で確保、0.30秒で消える、\`spawnParticles(30個上限)\`）
+・画面の揺れ → \`⑥ 画面の揺れ\` と \`renderPlayScreen()\` の先頭（0.15秒で0へ戻す）
+・拡縮 → \`③ 拡縮\`（足元原点・clamp 0.75〜1.30・1-(1-t)^3）
+・演出のON/OFF → \`TUNING.juice = true / false\`（falseで全部止まる。発表で並べて見せる）
+・クネクネ → \`⑥-2\`（bpm と同じ変数から作る。待機中も止めない）
+
+**足すのは1つだけ**：このゲーム固有の「取得」「被弾」「成功」で
+\`spawnParticles(x, y, 8, '#FFD400')\` と \`addScore(10, x, y)\` を呼ぶ（\`updateGame\` の中）。
 
 ${PERF_RULE}
 
@@ -1367,26 +1798,18 @@ ${picoSpecBlock()}
 
 ${WIGGLE_SPEC}
 
-【実装：3分割クネクネを drawPico の呼び出し側で作る（drawPico は書き換えない）】
-・drawPico を3回呼び、頭・胴・腰を別々に描くのではなく、
-  **1体ぶんの描画を x をずらして3回重ねるのではなく**、次の形で「体のしなり」を作る：
-  \`\`\`js
-  // t = 経過秒, bpm = 現在のBPM（加速で変わる）, W = HEAD
-  var omega = 2 * Math.PI * bpm / 60 / 2;      // 8分音符で1往復
-  var A = 0.10 * W;                             // 頭の振れ幅
-  var swayH = A * Math.sin(t * omega);          // 頭
-  var swayB = A * 0.70 * Math.sin(t * omega - 0.9);   // 胴
-  var swayW = A * 0.40 * Math.sin(t * omega - 1.8);   // 腰
-  var lean  = (swayH - swayW) / W * 6;          // 上体の傾き（度）
-  // 頭を swayH、胴を swayB、腰を swayW だけ横にずらして描く。
-  // 簡単に済ませるなら、drawPico を3回呼ばず、体全体を translate(swayB) した上で
-  // 頭だけ translate(swayH - swayB) する2段構えでもよい（見た目は十分ヘビになる）。
-  \`\`\`
-・**BGMのテンポとクネクネは、同じ bpm 変数から作る。** 別々に持たない。加速したら両方一緒に速くなる。
-・待機中もこの計算を毎フレーム回す。ポーズが idle でも止めない。
+【実装：クネクネは参照コードの「⑥-2」に、もう入っている】
+参照コードの中の \`swayX()\` がそれ。\`drawPico(ctx, player.x + swayX(), ...)\` の形で、
+x を数pxだけずらしている。**このまま使う。書き直さない。**
+・振れ幅は 34px（頭の幅）の 10%＝3.4px。これ以上大きくすると、別のキャラに見える。
+・速さは **bpm から作る**（\`omega = 2π·bpm/60/2\`＝8分音符で1往復）。BGMと別々に持たない。
+  加速したら、音も揺れも同じフレームで一緒に速くなる。
+・**待機中も止めない。** 参照コードの \`update()\` の先頭で \`animT += dt\` を毎フレーム進めている。
+  ここを if で囲むと、idle のときに止まって「止まった絵」になる。
 
 【使うときのルール】
-・drawPico(ctx, px, py, HEAD, 'idle', 1, 1) のように呼ぶ。HEAD は TUNING.picoSize（例 34）。
+・呼び方は 参照コードの \`renderPlayScreen()\` の中の1行をそのまま使う：
+  \`drawPico(ctx, player.x + swayX(), player.y, 34, pose, player.sx, player.sy, 1)\`
 ・拡縮の倍率と秒数は【拡縮（スクワッシュ＆ストレッチ）】の表から写す（ここには再揭しない）。
 ・足元基準で拡大縮小されるので、py は地面のYのままでよい（中心基準にしない）。
 ・顔（髪・眼鏡・口髭・目）は全ポーズ共通。**変えるのは傾きと口の開きと足の開きだけ。**
@@ -1670,7 +2093,7 @@ Markdownの見出しだけで構成。前置き・自己紹介・謝辞の定型
 
 PK2.prompts = { promptPlan, promptImage, promptAssets, promptWeb, promptUnity, promptProposal,
                 juiceBlock, absurdBlock, PICO_LOOK, LOCK, JUICE_RULE, ABSURD_RULE, PERF_RULE,
-                INPUT_SPEC, JUICE_SCALE, EFFECT_CHECK, PERF_HARD,
+                INPUT_SPEC, JUICE_SCALE, EFFECT_CHECK, PERF_HARD, CORE_CODE, coreBlock,
                 FUN_RULE, funBlock, musicBlock, musicWebBlock,
                 situBlock, alwaysTwistBlock, WIGGLE_SPEC,
                 NES_BGM, NES_BGM_CORE, PPAP_BGM,
